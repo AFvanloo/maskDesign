@@ -208,7 +208,7 @@ class Sample:
         #Default values
         if rbend == None: rbend = self.rbend
         
-
+        print 'bla'
         self.arcs += 1
         #create launchers according to the list 'launcherpositions'
         setattr(self, 'arc'+str(self.arcs), Arc(self, initAngle, degrees,
@@ -624,7 +624,7 @@ class Sample:
 
 
     def addGateLine(self, placeInfoLaunch, placeInfoTransmon, gapLen=25*um,
-            extraline=0, gapOffset = (0,0), endrot=0):
+            extraline=0, gapOffset = (0,0), endrot=0, startrot=0):
         '''
         Add a gateLine from the Launcher connector to a transmon box
 u
@@ -637,23 +637,39 @@ u
         endrot: rotation of the endpoint, including an arc: Specify if the last
         turn is either left or right
             so endrot = 'l' or 'r' or 0
+
+        When connecting to coordinates rather than a Launcher, use startRot to get
+        the correct initial rotation (its automatic from Objects)
+
         '''
 
         self.gateLines += 1
 
         setattr(self, 'gateLine'+str(self.gateLines),
                 GateLine(self, placeInfoLaunch, placeInfoTransmon, gapLen,
-                    extraline, gapOffset, endrot))
+                    extraline, gapOffset, endrot, startrot))
 
 
 
     def addFluxLine(self, placeInfoLaunch, placeInfoTransmon, extraLine=0,
-         fluxGap=None, fluxLen=None, fluxOffset = (0,0), endrot=0):
+         fluxGap=None, fluxLen=None, fluxOffset = (0,0), endrot=0, startrot=0):
         '''
         Add a flux Line from the Launcher connector to a transmon box
 
-        When connecting to something else then a Launcher, use startRot to get
-        the correct initial rotation (its automatic from launchers)
+        options:
+        fluxGap = gap for current to flow between fluxLine and transmonbox
+        fluxLen = Length of the structure
+        fluxOffset = offsets in the x and y direction compared to the transmon
+        box
+
+        endrot: rotation of the endpoint, including an arc: Specify if the last
+        turn is either left or right
+            so endrot = 'l' or 'r' or 0
+
+
+        When connecting to coordinates rather than a Launcher, use startRot to get
+        the correct initial rotation (its automatic from Objects)
+
         '''
 
         if fluxGap == None: fluxGap = defaults['fluxGap']
@@ -663,11 +679,11 @@ u
 
         setattr(self, 'fluxLine'+str(self.fluxLines),
                 FluxLine(self, placeInfoLaunch, placeInfoTransmon, fluxGap,
-                    extraLine, fluxLen, fluxOffset, endrot))
+                    extraLine, fluxLen, fluxOffset, endrot, startrot))
 
 
 
-    def route(self, placeInfo1, placeInfo2, rot1=0, endrot=0, startrot=0):
+    def route(self, placeInfo1, placeInfo2, rot1=0, endrot=0):
         '''
         Draw a CPW from coords1 to coords2
 
@@ -702,15 +718,6 @@ u
         dx = self.endcoords[0] - self.startcoords[0]
         dy = self.endcoords[1] - self.startcoords[1]
 
-        print ' routing endrot is ', endrot
-        if endrot == 'l': 
-            dx += self.rbend
-            dy -= self.rbend
-            print 'going left'
-        if endrot == 'r': 
-            dx -= self.rbend
-            dy -= self.rbend
-
         #Re-express as an upgoing problem
         if self.startrot%90 != 0:
             raise ValueError, 'Use only multiples of 90 degrees when connecting a flux or gateline'
@@ -731,6 +738,15 @@ u
             tdx = -dy
             tdy = -dx
             rotBack = 180
+
+        print 'tdy, tdx are', tdx, tdy
+
+        if endrot == 'l': 
+            tdx += self.rbend
+            tdy -= self.rbend
+        if endrot == 'r': 
+            tdx -= self.rbend
+            tdy -= self.rbend
 
         routeCell = md.CPWroute(self.startcoords, tdx, tdy, rot = rotBack,
                 endrot=endrot) 
@@ -1281,7 +1297,7 @@ class Wiggle:
 class GateLine:
 
     def __init__(self, sampleX, placeInfoLaunch, placeInfoTransmon, gapLen,
-            extraLen, gapOffset, endrot):
+            extraLen, gapOffset, endrot, startrot):
 
 
         self.gapLen = gapLen
@@ -1298,11 +1314,13 @@ class GateLine:
         else:
             #its coordinates
             self.Lcoords = placeInfoLaunch
+            self.Lrot = startrot
            
         #First, Add a gateLine End
         self.addGateLineEnd(sampleX, placeInfoTransmon)
 
-        routeCell = sampleX.route(placeInfoLaunch, self.gateEndConnect, endrot=self.endrot)
+        routeCell = sampleX.route(placeInfoLaunch, self.gateEndConnect,
+                endrot=self.endrot, rot1 = self.Lrot)
         sampleX.topCell.add(routeCell)
 
 
@@ -1327,7 +1345,7 @@ class GateLine:
 
             #Endrot
             if self.endrot == 'l':
-                GLErot = Lrot + 90
+                GLErot = self.Lrot + 90
             elif self.endrot == 'r':
                 GLErot = self.Lrot - 90
             else:
@@ -1353,7 +1371,7 @@ class GateLine:
 class FluxLine:
 
     def __init__(self, sampleX, placeInfoLaunch, placeInfoTransmon, fluxGap,
-            extraLine, fluxLen, fluxOffset, endrot):
+            extraLine, fluxLen, fluxOffset, endrot, startrot):
 
         #init
         self.fluxGap = fluxGap
@@ -1371,12 +1389,13 @@ class FluxLine:
         else:
             #its coordinates
             self.Lcoords = placeInfoLaunch
+            self.Lrot = startrot
            
         #First, Add a gateLine End
         self.addFluxLineEnd(sampleX, placeInfoTransmon)
 
         routeCell = sampleX.route(placeInfoLaunch, self.fluxEndConnect, endrot =
-                self.endrot)
+                self.endrot, rot1 = self.Lrot)
         sampleX.topCell.add(routeCell)
 
     def addFluxLineEnd(self, sampleX, placeInfoTransmon):
@@ -1475,10 +1494,10 @@ class TransmonBox:
             self.connectC = (self.coords[0]+w/2*np.cos(rad(rot)), 
                     self.coords[1] - np.sin(rad(rot))*w/2)
             if self.flip:
-                self.connectB = (self.coords[0],
+                self.connectB = (self.coords[0] + h/2*np.sin(rad(rot)),
                         self.coords[1]+self.shape[1]/2*np.cos(rad(rot)))
             else:
-                self.connectB = (self.coords[0],
+                self.connectB = (self.coords[0] -h/2*np.sin(rad(rot)),
                         self.coords[1]-self.shape[1]/2*np.cos(rad(rot)))
         else: #if its a corner transmon
             if flip:
@@ -1499,11 +1518,6 @@ class TransmonBox:
                     self.coords[1] - (w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)))
                 self.connectD = (self.coords[0] +(w/2-h/2)*np.cos(rad(rot)) +(w/2)*np.sin(rad(rot)), 
                     self.coords[1] - w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
-
-       # if gateLine:
-       #     self.addGateLineEnd()
-       # if fluxLine:
-       #     self.addFluxLineEnd()
 
         #make the cell
         self.makeCell()

@@ -111,10 +111,21 @@ def singleRes(freq, wiggles=6, label='RES', exportName ='./wafer1/singleResonato
 
     #fluxLines
     SR.addDoubleArc(50*um, 'launcher14.connect') #prevent cableClash
-    SR.addFluxLine('doubleArc1.connectA', 'transmonBox1.connectA', endrot=0)
-    SR.addGateLine('launcher8.connect', 'transmonBox4.connectB', endrot='r')
+    #SR.addFluxLine('doubleArc1.connectA', 'transmonBox1.connectA', endrot=0)
+    #SR.addFluxLine('launcher8.connect', 'transmonBox4.connectC', endrot=0)
 
-    LP = md.CPWroute((0,0), -300*um, 700*um)
+    #to prevent clashing of airbridges, create an arc and the fluxLine with a
+    #startrotation of 
+    SR.addArc(90,90,'launcher8.connect', rot=90, flip=True)
+    SR.addFluxLine('arc1.connectB', 'transmonBox4.connectC', endrot='l')
+    SR.addFluxLine((2*mm,-2*mm), 'transmonBox4.connectC', endrot='l',
+            startrot=90)
+
+    #LP = md.CPWroute((0,0), -300*um, 700*um)
+    
+    SR.addTransmonBox((0,2*mm), rot=90, flip=True)
+    SR.addGateLine('launcher13.connect', 'transmonBox5.connectB',
+            gapOffset=(-00*um,00*um), endrot='l')
 
     SR.show()
    
