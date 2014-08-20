@@ -343,7 +343,7 @@ class Sample:
                 GapCoupler(self,gapSize, placeInfo, extralen, flip, rot))
 
 
-    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2],
+    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0), almarks = [2,2],
             flip=False, corner=False,  rot=0):
         '''
         Add a TransmonBox. 
@@ -735,11 +735,11 @@ u
             tdy = dx
             rotBack = -90
         elif self.startrot == 270 or -90:
-            tdx = -dy
-            tdy = -dx
+            tdx = -dx
+            tdy = -dy
             rotBack = 180
 
-        print 'tdy, tdx are', tdx, tdy
+        print 'tdx, tdy are', tdx, tdy
 
         if endrot == 'l': 
             tdx += self.rbend
@@ -1467,12 +1467,9 @@ class TransmonBox:
         self.corner = corner
         self.rot = rot
 
-        if flip:
-            self.offset = (-self.offset[0], self.offset[1])
-
         #Include the CPW dimensions for easier connecting
-        xlen2 = self.offset[0]# + self.shape[0]/2
-        ylen2 = self.shape[not self.corner]/2. + sampleX.b1/2 #+ self.offset[1]
+        xlen2 = self.offset[0] #+ self.shape[0]/2
+        ylen2 = self.shape[not self.corner]/2. + sampleX.b1/2*np.cos(rad(rot)) + self.offset[1]
         
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
@@ -1481,8 +1478,8 @@ class TransmonBox:
             self.cp = getattr(comp, placeInfo.split('.')[1])
             #Adjust for the size of the component
             if self.flip:
-                self.coords = (self.cp[0] + (xlen2*np.cos(rad(rot)) + ylen2*np.sin(rad(rot))),
-                    self.cp[1] - xlen2*np.sin(rad(rot)) + ylen2*np.cos(rad(rot)))
+                self.coords = (self.cp[0] + (xlen2*np.cos(rad(rot))+ ylen2*np.sin(rad(rot))),
+                    self.cp[1] - xlen2*np.sin(rad(rot)) - ylen2*np.cos(rad(rot)))
             else:
                 self.coords = (self.cp[0] + (xlen2*np.cos(rad(rot)) - ylen2*np.sin(rad(rot))),
                     self.cp[1] + xlen2*np.sin(rad(rot)) - ylen2*np.cos(rad(rot)))
