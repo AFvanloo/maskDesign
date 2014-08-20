@@ -343,7 +343,7 @@ class Sample:
                 GapCoupler(self,gapSize, placeInfo, extralen, flip, rot))
 
 
-    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0), almarks = [2,2],
+    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2],
             flip=False, corner=False,  rot=0):
         '''
         Add a TransmonBox. 
@@ -1458,13 +1458,17 @@ class TransmonBox:
 
         When setting corner to True, shape is [widht, height]
         '''
-
+        
+        
         self.shape = shape
         self.offset = offset
         self.alMarks = almarks
         self.flip = flip
         self.corner = corner
         self.rot = rot
+
+        if flip:
+            self.offset = (-self.offset[0], self.offset[1])
 
         #Include the CPW dimensions for easier connecting
         xlen2 = self.offset[0]# + self.shape[0]/2
