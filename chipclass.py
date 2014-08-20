@@ -1089,7 +1089,7 @@ class SLine:
                 if reflect:
                      self.coords = (self.cp[0] - self.rbend*np.cos(rad(self.rot)) +
                         self.yspan/2.*np.sin(rad(self.rot)), self.cp[1] +
-                        self.yspan/2.*np.cos(rad(self.rot)) -self.rbend*np.sin(rad(self.rot)))
+                        self.yspan/2.*np.cos(rad(self.rot)) +self.rbend*np.sin(rad(self.rot)))
                 else:
                     self.coords = (self.cp[0] - self.rbend*np.cos(rad(self.rot)) -
                         self.yspan/2.*np.sin(rad(rot)), self.cp[1] -
@@ -1098,7 +1098,7 @@ class SLine:
                 if reflect:
                      self.coords = (self.cp[0] + self.rbend*np.cos(rad(self.rot)) -
                         self.yspan/2.*np.sin(rad(self.rot)), self.cp[1] +
-                        self.yspan/2.*np.cos(rad(self.rot)) +self.rbend*np.sin(rad(self.rot)))
+                        self.yspan/2.*np.cos(rad(self.rot)) -self.rbend*np.sin(rad(self.rot)))
                 else:
                     self.coords = (self.cp[0] + self.rbend*np.cos(rad(self.rot)) +
                         self.yspan/2.*np.sin(rad(rot)), self.cp[1] +
@@ -1433,6 +1433,7 @@ class FluxLine:
         else:
             #its coordinates
             self.FLcoords = placeInfoTransmon
+            FLErot = self.Lrot
 
         #draw!
         self.Cell = md.fluxLineEnd(self.FLcoords, totLen, fluxlen=self.fluxLen,
@@ -1512,7 +1513,7 @@ class TransmonBox:
                     self.coords[1] + w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
             else:
                 self.connectA = (self.coords[0] -w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)), 
-                    self.coords[1] + (w/2 - h/2)*np.cos(rad(rot)) + w/2*np.sin(rad(rot)))
+                    self.coords[1] + (w/2 - h/2)*np.cos(rad(rot)) - w/2*np.sin(rad(rot)))
                 self.connectB = (self.coords[0] -(w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)), 
                     self.coords[1] + (w/2-h)*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
                 self.connectC = (self.coords[0] +(w/2-h)*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)), 
