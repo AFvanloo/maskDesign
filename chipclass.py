@@ -208,7 +208,7 @@ class Sample:
         #Default values
         if rbend == None: rbend = self.rbend
         
-        print 'bla'
+        print 'adding an Arc'
         self.arcs += 1
         #create launchers according to the list 'launcherpositions'
         setattr(self, 'arc'+str(self.arcs), Arc(self, initAngle, degrees,
@@ -343,7 +343,7 @@ class Sample:
                 GapCoupler(self,gapSize, placeInfo, extralen, flip, rot))
 
 
-    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2],
+    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0), almarks = [2,2],
             flip=False, corner=False,  rot=0):
         '''
         Add a TransmonBox. 
@@ -1240,14 +1240,12 @@ class Wiggle:
             #its coordinates
             self.coords = placeInfo
         
-        print 'wiggle Coords are :', self.coords
 
         #Connector locations
         self.connectA = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
                 self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
         self.connectB = (self.coords[0] + self.xspan/2.*np.cos(rad(rot)), 
                 self.coords[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
-        print 'wiggle connector A at: ', self.connectA, ' and B at : ', self.connectB
 
         #make the cell
         self.makeCell()
@@ -1470,7 +1468,7 @@ class TransmonBox:
 
         #Include the CPW dimensions for easier connecting
         xlen2 = self.offset[0]# + self.shape[0]/2
-        ylen2 = self.shape[not self.corner]/2. + sampleX.b1/2 + self.offset[1]
+        ylen2 = self.shape[not self.corner]/2. + sampleX.b1/2 #+ self.offset[1]
         
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
@@ -1504,22 +1502,22 @@ class TransmonBox:
         else: #if its a corner transmon
             if flip:
                 self.connectA = (self.coords[0] -w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)), 
-                    self.coords[1] - (w/2 - h/2)*np.cos(rad(rot)) + w/2*np.sin(rad(rot)))
-                self.connectB = (self.coords[0] -(w/2-h/2)*np.cos(rad(rot)) + (w/2-h)*np.sin(rad(rot)), 
-                    self.coords[1] - (w/2-h)*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
+                    self.coords[1] - (w/2 - h/2)*np.cos(rad(rot)) - w/2*np.sin(rad(rot)))
+                self.connectB = (self.coords[0] -(h/2-w/2)*np.cos(rad(rot)) + (w/2-w)*np.sin(rad(rot)), 
+                    self.coords[1] - (w/2-h)*np.cos(rad(rot)) - (h/2-w/2)*np.sin(rad(rot)))
                 self.connectC = (self.coords[0] +(w/2-h)*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)), 
                     self.coords[1] + (w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)))
                 self.connectD = (self.coords[0] +(w/2-h/2)*np.cos(rad(rot)) -(w/2)*np.sin(rad(rot)), 
-                    self.coords[1] + w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
+                    self.coords[1] + w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
             else:
                 self.connectA = (self.coords[0] -w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)), 
                     self.coords[1] + (w/2 - h/2)*np.cos(rad(rot)) - w/2*np.sin(rad(rot)))
                 self.connectB = (self.coords[0] -(w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)), 
-                    self.coords[1] + (w/2-h)*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
+                    self.coords[1] + (w/2-h)*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
                 self.connectC = (self.coords[0] +(w/2-h)*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)), 
                     self.coords[1] - (w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)))
                 self.connectD = (self.coords[0] +(w/2-h/2)*np.cos(rad(rot)) +(w/2)*np.sin(rad(rot)), 
-                    self.coords[1] - w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
+                    self.coords[1] - w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
 
         #make the cell
         self.makeCell()
