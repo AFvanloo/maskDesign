@@ -1358,7 +1358,7 @@ class GateLine:
         else:
             #its coordinates
             self.GLcoords = placeInfoTransmon
-            self.GLErot = self.Lrot
+            GLErot = self.Lrot
 
         #draw!
         self.Cell = md.gateLineEnd(self.GLcoords, totLen, self.gapLen, rot=GLErot)
