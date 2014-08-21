@@ -18,7 +18,7 @@ defaults = dpars.dPars()
 class Sample:
 
     def __init__(self, border, launcherConfig='A', launcherPositions=[],
-            alignPos=range(4), label = '', labelPos = None):
+            alignPos=range(4), label = '', labelPos = None, labelFontSize=None):
         '''
         Calling constructor
 
@@ -96,13 +96,11 @@ class Sample:
 
         #label Font
         self.labelFont = defaults['labelFont']
+        if labelFontSize == None: self.labelFontSize = defaults['labelFontSize']
+        else: self.labelFontSize = labelFontSize
 
         # Bounding boxes for avoiding overlaps are kept in a np.array
         self.bbox = np.array([]) #TODO Not yet implemented
-
-        #List of possible components
-        self.complist = ['CPW','Resonator', 'GateLine', 'TransmonBox']
-        self.compamounts = [0,0,0,0]
 
         #A 6.5 Lambda/2 resonator is 2*4670um long
         lambhalf65 = 2*4670*um
@@ -153,6 +151,7 @@ class Sample:
         self.border1 = Border(self)
 
         #add label
+
         self.addText(self.label, fontSize = 500*um, placeInfo = self.labelPos)
 
         #add Launchers
@@ -298,7 +297,7 @@ class Sample:
 
         self.slines += 1
         setattr(self, 'sLine'+str(self.slines), SLine(self, yspan, placeInfo,
-            rbend, reflect, flip, enter, exit, rot))
+            rbend, reflect, flip, enter, exit, bridges, rot))
 
 
     def addJLine(self, totLen, xspan, yspan, nWiggles, placeInfo, offsets,
@@ -1082,7 +1081,8 @@ class DoubleArc:
         
 class SLine:
 
-    def __init__(self, sampleX, yspan, placeInfo, rbend, reflect, flip, enter, exit, rot):
+    def __init__(self, sampleX, yspan, placeInfo, rbend, reflect, flip, enter,
+            exit, bridges, rot):
         '''
         Construct an Sline 
         '''
@@ -1096,6 +1096,7 @@ class SLine:
         self.reflect = reflect
         self.rot = rot
         self.enter = enter
+        self.bridges = bridges
         self.exit = exit
 
         #Decide if we have coordinates or connection
@@ -1151,7 +1152,8 @@ class SLine:
         make the cad Cell reference of the CPW
         '''
         self.Cell = md.sLine(self.coords, self.yspan, rbend=self.rbend,
-                reflect=self.reflect, enter=self.enter, exit = self.exit, rot=self.rot)
+                reflect=self.reflect, enter=self.enter, exit = self.exit,
+                bridges = self.bridges, rot=self.rot)
         #Add the cell to the TopCell
         sampleX.topCell.add(self.Cell)
 
