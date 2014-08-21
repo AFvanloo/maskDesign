@@ -901,12 +901,6 @@ def CPWroute(coords, dx, dy, downBend = 0, bridges = True, rot=0, endrot=0):
     gap = defaults['CPWGap']
     rbend = defaults['minimumRadius']
 
-    #load airbridge Options
-
-
-
-    print 'endrot is', endrot
-
     #calculate yspan of bend if dx < 2*rbend
     if abs(dx) < 2*rbend:
         phirad = np.arccos(1-abs(dx)/(rbend*2))
