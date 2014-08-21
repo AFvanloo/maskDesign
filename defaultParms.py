@@ -51,13 +51,14 @@ def dPars():
             'ABirGap'               : 40*um,
             'ABlayers'              : (2,1,25),
             'ABdistance'            : 200*um,
-            'ABstart'               : 150*um,   #start and end distance for airbridges
-            'ABend'                 : 100*um,
+            'ABstart'               : 200*um,   #start and end distance for airbridges
+            'ABend'                 : 200*um,
             'transmonWidth'         : 300*um,
             'transmonHeight'        : 150*um,
             'cornerTransmonWidht'   : 300*um,
             'cornerTransmonHeight'  : 150*um,
             'labelFont'             : 'romand', 
+            'labelFontSize'         : 500*um,
             'gateGapLen'            : 25*um,    #gap length at the end of the  gateLine
             'fluxGap'               : 2*um,     #Gap for current flow at the fluxline      
             'fluxLen'               : 40*um,    #Length of the fluxLine end      
