@@ -621,12 +621,11 @@ def fluxLineEndAsym(coords,totlen,fluxlen,taplen=10*um, fluxgap=2*um,
 
 
 def airBridge(coords,footerLen=30*um,bridgeSizeX=40*um,bridgeSizeY=10*um,
-        reflowGap=3*um,irGap=40*um, layers = [2,1,25], rot=0):
+        reflowGap=3*um,irGap=40*um, layers = [2,1], rot=0):
     '''
     Create an Airbridge Qudev style:
 
         With default values (layers = [2,1,25]), you get:
-        big box on layer 25,
         narrow bridge in layer 2
         footpoints in layer 1
         nothing in layer 0
@@ -637,7 +636,7 @@ def airBridge(coords,footerLen=30*um,bridgeSizeX=40*um,bridgeSizeY=10*um,
     bridgeCell = cad.core.Cell('BRIDGE')
 
     #bridge
-    bridge = border(bridgeSizeX+2*footerLen, bridgeSizeY, 2*irGap, layer=2)
+    bridge = border(bridgeSizeX+2*footerLen, bridgeSizeY, 2*irGap, layer=layers[0])
     bridgeCell.add(bridge)
 
     #supportBoxes
@@ -834,6 +833,9 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     yspan = (ylentot+2*rbend*(nwiggle+1))/(2*nwiggle) #Beware the entry and exit arc,
     yspan = float(yspan)
     print 'yspan is', yspan
+
+    if 2*yspan < yOffset + 2* rbend:
+        raise ValueError, 'Your yOffset should be smaller than your wiggle is high plus twice rbend'
 
     #which make the first vertical pieces shorter!
     totlenc = 0

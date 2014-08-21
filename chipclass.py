@@ -111,6 +111,7 @@ class Sample:
         self.resonators = 0
         self.wiggles = 0
         self.transmonBoxes = 0
+        self.cornerTransmonBoxes = 0
         self.fingerCouplers = 0
         self.gapCouplers = 0
         self.airbridges = 0
@@ -343,8 +344,8 @@ class Sample:
                 GapCoupler(self,gapSize, placeInfo, extralen, flip, rot))
 
 
-    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0), almarks = [2,2],
-            flip=False, corner=False,  rot=0):
+    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2],
+            flip=False, rot=0):
         '''
         Add a TransmonBox. 
 
@@ -356,21 +357,39 @@ class Sample:
 
         if flip is set to true, the transmonbox is placed on the opposite side
         of the CPW
+        '''
+
+        self.transmonBoxes += 1
+        setattr(self, 'transmonBox'+str(self.transmonBoxes),
+                TransmonBox(self, shape, placeInfo, offset, almarks, flip, rot))
+
+    def addCornerTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0),rot=0):
+        '''
+        Add a TransmonBox. 
+
+        shape = width, height.
+
+        The offset is an offset compared to placeInfo, and does not depend on
+        the rotation.
+        
+        PlaceInfo can be either of three things:
+            - A string with connector info, eg 'CPW1.coords' or 'wiggle.connectA'
+            - A list containing a horizontal and vertical CPW or wiggle, in that
+              order [horizonConnect, verticalConnect], upon whihc the
+              transmonBox will be placed in the corner
+            - A tuple or list of coordinates (x, y)
+        
+        The offset is ignored when the placeInfo provided is a tuple with
+        coordinates rather than a string to a connector
 
         if corner is set to True, you get a cornerTransmonBox instead. In that
         case, options almarks and flip are ignored
         '''
 
-        #If gateLine is set to true, a gateLineEnd is created at the transmonBox.
-        #Its options can be set in a list via gateOptions, in the order
-        #[gapLen, xOffset]
+        self.cornerTransmonBoxes += 1
+        setattr(self, 'cornerTransmonBox'+str(self.cornerTransmonBoxes),
+                CornerTransmonBox(self, shape, placeInfo, offset, rot))
 
-        #If fluxLine is set to true, a fluxLineEnd is created at the transmonbox
-
-        self.transmonBoxes += 1
-        setattr(self, 'transmonBox'+str(self.transmonBoxes),
-                TransmonBox(self, shape, placeInfo, offset, almarks, flip,
-                    corner, rot))
 
     def addFingerCap(self, nFingers, placeInfo, fingerLen = None, 
             fingerThick=None, gapHeight = None, gapWidth = None, flip=False, rot=0):
@@ -1449,14 +1468,15 @@ class TransmonBox:
     Box for Transmon
     '''
 
-    def __init__(self, sampleX, shape, placeInfo, offset, almarks, flip, corner, rot):
+    def __init__(self, sampleX, shape, placeInfo, offset, almarks, flip, rot):
         '''
         Initialize Transmon Box properties
 
         The offset is relative to the placeInfo, such that the
         transmonBox can be connected to a resonator or wiggle connector
 
-        When setting corner to True, shape is [widht, height]
+        flip switches a normal qubit to the other side of the Transmission line.
+
         '''
         
         
@@ -1464,12 +1484,11 @@ class TransmonBox:
         self.offset = offset
         self.alMarks = almarks
         self.flip = flip
-        self.corner = corner
         self.rot = rot
 
         #Include the CPW dimensions for easier connecting
         xlen2 = self.offset[0] #+ self.shape[0]/2
-        ylen2 = self.shape[not self.corner]/2. + sampleX.b1/2*np.cos(rad(rot)) + self.offset[1]
+        ylen2 = self.shape[1]/2. + sampleX.b1/2*np.cos(rad(rot)) + self.offset[1]
         
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
@@ -1479,7 +1498,7 @@ class TransmonBox:
             #Adjust for the size of the component
             if self.flip:
                 self.coords = (self.cp[0] + (xlen2*np.cos(rad(rot))+ ylen2*np.sin(rad(rot))),
-                    self.cp[1] - xlen2*np.sin(rad(rot)) - ylen2*np.cos(rad(rot)))
+                    self.cp[1] - xlen2*np.sin(rad(rot)) + ylen2*np.cos(rad(rot)))
             else:
                 self.coords = (self.cp[0] + (xlen2*np.cos(rad(rot)) - ylen2*np.sin(rad(rot))),
                     self.cp[1] + xlen2*np.sin(rad(rot)) - ylen2*np.cos(rad(rot)))
@@ -1489,36 +1508,90 @@ class TransmonBox:
 
         #Add connectors for non-corner transmon
         (w, h) = self.shape #for easier typing
-        if self.corner == False:
-            self.connectA = (self.coords[0]-w/2*np.cos(rad(rot)), 
-                    self.coords[1] + np.sin(rad(rot))*w/2)
-            self.connectC = (self.coords[0]+w/2*np.cos(rad(rot)), 
-                    self.coords[1] - np.sin(rad(rot))*w/2)
-            if self.flip:
-                self.connectB = (self.coords[0] + h/2*np.sin(rad(rot)),
-                        self.coords[1]+self.shape[1]/2*np.cos(rad(rot)))
-            else:
-                self.connectB = (self.coords[0] -h/2*np.sin(rad(rot)),
-                        self.coords[1]-self.shape[1]/2*np.cos(rad(rot)))
-        else: #if its a corner transmon
-            if flip:
-                self.connectA = (self.coords[0] -w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)), 
-                    self.coords[1] - (w/2 - h/2)*np.cos(rad(rot)) - w/2*np.sin(rad(rot)))
-                self.connectB = (self.coords[0] -(h/2-w/2)*np.cos(rad(rot)) + (w/2-w)*np.sin(rad(rot)), 
-                    self.coords[1] - (w/2-h)*np.cos(rad(rot)) - (h/2-w/2)*np.sin(rad(rot)))
-                self.connectC = (self.coords[0] +(w/2-h)*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)), 
-                    self.coords[1] + (w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)))
-                self.connectD = (self.coords[0] +(w/2-h/2)*np.cos(rad(rot)) -(w/2)*np.sin(rad(rot)), 
-                    self.coords[1] + w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
-            else:
-                self.connectA = (self.coords[0] -w/2*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)), 
-                    self.coords[1] + (w/2 - h/2)*np.cos(rad(rot)) - w/2*np.sin(rad(rot)))
-                self.connectB = (self.coords[0] -(w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)), 
-                    self.coords[1] + (w/2-h)*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
-                self.connectC = (self.coords[0] +(w/2-h)*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)), 
-                    self.coords[1] - (w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)))
-                self.connectD = (self.coords[0] +(w/2-h/2)*np.cos(rad(rot)) +(w/2)*np.sin(rad(rot)), 
-                    self.coords[1] - w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
+        self.connectA = (self.coords[0]-w/2*np.cos(rad(rot)), 
+                self.coords[1] + np.sin(rad(rot))*w/2)
+        self.connectC = (self.coords[0]+w/2*np.cos(rad(rot)), 
+                self.coords[1] - np.sin(rad(rot))*w/2)
+        if self.flip:
+            self.connectB = (self.coords[0] + h/2*np.sin(rad(rot)),
+                    self.coords[1]+self.shape[1]/2*np.cos(rad(rot)))
+        else:
+            self.connectB = (self.coords[0] -h/2*np.sin(rad(rot)),
+                    self.coords[1]-self.shape[1]/2*np.cos(rad(rot)))
+
+        #make the cell
+        self.makeCell()
+        #Add to sample Cell
+        sampleX.topCell.add(self.Cell)
+
+
+    def makeCell(self):
+        '''
+        Use the maskDesign module to generate the object
+        '''
+
+        self.Cell = md.transmonBoxAlign(self.coords, self.shape, self.alMarks, self.rot)
+
+
+
+class CornerTransmonBox:
+    '''
+    CornerBox for Transmon
+    '''
+
+    def __init__(self, sampleX, shape, placeInfo, offset, rot):
+        '''
+        Initialize Transmon Box properties
+
+        The offset is relative to the placeInfo, such that the
+        cornertransmonBox can be connected to a resonator or wiggle connector
+
+        To put the cornerTransmon at the other side of a CPW, use rotate
+        '''
+        
+        
+        self.shape = shape
+        self.offset = offset
+        self.rot = rot
+
+        #Include the CPW dimensions for easier connecting
+        xlen2 = self.shape[0]/2 + sampleX.b1/2
+        ylen2 = self.shape[0]/2 + sampleX.b1/2
+        
+        #Decide if we have coordinates or connection
+        if type(placeInfo) == str:
+            #its a connection: get the coordinates!
+            comp = getattr(sampleX, placeInfo.split('.')[0])
+            self.cp = getattr(comp, placeInfo.split('.')[1])
+            #Adjust for the size of the component
+            self.coords = (self.cp[0] + self.offset[0] - xlen2*np.cos(rad(rot)) - ylen2*np.sin(rad(rot)),
+                self.cp[1] + self.offset[1] + ylen2*np.cos(rad(rot)) - xlen2*np.sin(rad(rot)))
+        elif type(placeInfo[0]) == str:
+            #its a connection: get the coordinates!
+            comp1 = getattr(sampleX, placeInfo[0].split('.')[0])
+            comp2 = getattr(sampleX, placeInfo[1].split('.')[0])
+            cpx = getattr(comp1, placeInfo[0].split('.')[1])[0]
+            cpy = getattr(comp2, placeInfo[0].split('.')[1])[1]
+            print 'cpx, cpy are ', cpx, cpy
+            self.cp = (cpx, cpy)
+            #Adjust for the size of the component
+            self.coords = (self.cp[0] + self.offset[0] - xlen2*np.cos(rad(rot)) - ylen2*np.sin(rad(rot)),
+                self.cp[1] + self.offset[1] + ylen2*np.cos(rad(rot)) - xlen2*np.sin(rad(rot)))
+
+        else:
+            #its coordinates
+            self.coords = placeInfo
+
+        #Connectors
+        (w, h) = self.shape #for easier typing
+        self.connectA = (self.coords[0] - w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)), 
+            self.coords[1] - (w/2 - h/2)*np.cos(rad(rot)) - w/2*np.sin(rad(rot)))
+        self.connectB = (self.coords[0] -(w/2-h/2)*np.cos(rad(rot)) - (w/2-h)*np.sin(rad(rot)), 
+            self.coords[1] + (w/2-h)*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)))
+        self.connectC = (self.coords[0] +(w/2-h)*np.cos(rad(rot)) - (w/2-h/2)*np.sin(rad(rot)), 
+            self.coords[1] + (w/2-h/2)*np.cos(rad(rot)) + (w/2-h)*np.sin(rad(rot)))
+        self.connectD = (self.coords[0] +(w/2-h/2)*np.cos(rad(rot)) -(w/2)*np.sin(rad(rot)), 
+            self.coords[1] + w/2*np.cos(rad(rot)) + (w/2-h/2)*np.sin(rad(rot)))
 
         #make the cell
         self.makeCell()
@@ -1532,11 +1605,7 @@ class TransmonBox:
         '''
 
         #construct object
-        if self.corner:
-            self.Cell = md.cornerTransmonBox(self.coords, self.shape,
-                    rot=self.rot+(not self.flip)*90)
-        else:
-            self.Cell = md.transmonBoxAlign(self.coords, self.shape, self.alMarks, self.rot)
+        self.Cell = md.cornerTransmonBox(self.coords, self.shape, rot=self.rot)
 
 
 

@@ -68,7 +68,7 @@ def testResonators(freqList = np.arange(4,9,1), label = 'TR1', sharedLen
     return TR
 
     
-def singleRes(freq, wiggles=6, label='RES', exportName ='./wafer1/singleResonator.gds',
+def singleRes(freq, wiggles=6, label='1R4QB', exportName ='./wafer1/singleResonator.gds',
         labelPos = (-.5*mm, -3.1*mm), offset1=300*um, offset2 = 800*um):
     '''
     Single Resonator
@@ -107,11 +107,17 @@ def singleRes(freq, wiggles=6, label='RES', exportName ='./wafer1/singleResonato
     #GateLines
     SR.addGateLine('launcher13.connect', 'transmonBox1.connectB',
             gapOffset=(-00*um,00*um), endrot=0)
+    SR.addGateLine('launcher13.connect', 'transmonBox1.connectB',
+            gapOffset=(-00*um,00*um), endrot=0)
+    SR.addGateLine('launcher13.connect', 'transmonBox1.connectB',
+            gapOffset=(-00*um,00*um), endrot=0)
+    SR.addGateLine('launcher13.connect', 'transmonBox1.connectB',
+            gapOffset=(-00*um,00*um), endrot=0)
     #SR.addFluxLine('launcher12.connect', 'transmonBox1.connectC', endrot='l')
 
     #fluxLines
     SR.addDoubleArc(50*um, 'launcher14.connect') #prevent cableClash
-    #SR.addFluxLine('doubleArc1.connectA', 'transmonBox1.connectA', endrot=0)
+    SR.addFluxLine('doubleArc1.connectA', 'transmonBox1.connectA', endrot=0)
     #SR.addFluxLine('launcher8.connect', 'transmonBox4.connectC', endrot=0)
 
     #to prevent clashing of airbridges, create an arc and the fluxLine with a
@@ -121,12 +127,32 @@ def singleRes(freq, wiggles=6, label='RES', exportName ='./wafer1/singleResonato
     SR.addFluxLine((2*mm,-2*mm), 'transmonBox4.connectC', endrot='l',
             startrot=90)
 
-    #LP = md.CPWroute((0,0), -300*um, 700*um)
-    
-    SR.addTransmonBox((0,2*mm), rot=90, flip=True)
-    SR.addGateLine('launcher13.connect', 'transmonBox5.connectB',
-            gapOffset=(-00*um,00*um), endrot='l')
 
+    #testing
+    SR.addCPW(2*mm, (0,2*mm), rot=90)
+    SR.addCPW(2*mm, (0,2*mm), rot=0)
+    SR.addCPW(2*mm, (-1*mm,2*mm), rot=90)
+    #SR.addCornerTransmonBox('CPW1.coords', rot=0,
+    #        offset=(-00*um,00*um))
+    
+
+    #testing transmonbox connectors
+    test = 'D'
+
+    SR.addCornerTransmonBox('CPW2.coords', offset=(0,0), rot=0)
+    SR.addCornerTransmonBox('CPW2.coords', offset=(.5*mm,0), rot=90)
+    SR.addCornerTransmonBox('CPW2.coords', offset=(1*mm,0), rot=180)
+    SR.addCornerTransmonBox('CPW2.coords', offset=(1.5*mm,0), rot=270)
+    #SR.addCornerTransmonBox(['CPW2.coords','CPW3.coords'], offset=(0*um,0), rot=270)
+
+    SR.addFluxLine((2*mm,-2*mm), 'cornerTransmonBox1.connect'+test, endrot='r', startrot=90)
+    SR.addFluxLine((2*mm,-2*mm), 'cornerTransmonBox2.connect'+test, endrot='r', startrot=90)
+    SR.addFluxLine((2*mm,-2*mm), 'cornerTransmonBox3.connect'+test, endrot='l', startrot=90)
+    SR.addFluxLine((2*mm,-2*mm), 'cornerTransmonBox4.connect'+test, endrot='l', startrot=90)
+
+
+
+    #LP = md.CPWroute((0,0), -300*um, 700*um)
     SR.show()
    
     return SR
@@ -136,8 +162,11 @@ def singleRes(freq, wiggles=6, label='RES', exportName ='./wafer1/singleResonato
 if __name__ == '__main__':
     (15.4)
 
+#TODO TRANSMONBOXESCORNER
+#TODO Test Merge
+#TODO AllComponents
+#TODO Multi-Paramp
+#TODO
+#TODO
+#TODO
 
-#TODO Complete doubleArc class
-#TODO Complete ROUTE
-#TODO COMplete gateLine
-#TODO complete FluxLine
