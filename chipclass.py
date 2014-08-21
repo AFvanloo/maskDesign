@@ -475,7 +475,7 @@ class Sample:
         #Build the finger coupler
         self.fingerCouplers += 1
         setattr(self, 'airBridge'+str(self.airbridges),
-                AirBridge(self, placeInfo, bridgeLenX, bridgeLenY, footerLen, 
+                Airbridge(self, placeInfo, bridgeLenX, bridgeLenY, footerLen, 
                     irGap, reflowGap, layers, offset, rot=rot))
     
     def addTaper(self, taperLen, placeInfo, startCenter, endCenter=None, abr = None, rot=0):
@@ -1611,7 +1611,7 @@ class CornerTransmonBox:
 
 
 
-class AirBridge:
+class Airbridge:
 
     def __init__(self, sampleX, placeInfo, bridgeLenX, bridgeLenY, footerLen,
             irGap, reflowGap, layers, offset, rot):
@@ -1637,7 +1637,7 @@ class AirBridge:
             comp = getattr(sampleX, placeInfo.split('.')[0])
             self.cp = getattr(comp, placeInfo.split('.')[1])
             self.coords = (self.cp[0]+self.offset[0], self.cp[1]+self.offset[1])
-        if type(placeInfo) == tuple:
+        else:
             #its coordinates
             self.coords = placeInfo
 
