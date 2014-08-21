@@ -9,7 +9,7 @@ defaults = dp.dPars()
 
 #TODO
 #Qudev-style alignment marker:
-#GateLines/FluxLines
+#ChargeLines/FluxLines
 #Easy way to add airbridges
 
 
@@ -29,7 +29,7 @@ cad.core.default_layer = 0
 #abrl = a/b ratio (b being outside of gap)
 #abrr = a/b ratio of launcher
 #
-##in GateLine
+##in ChargeLine
 #distance= gap between end center conductor and end of the line
 #offset: offset of the end on the x-axis relative to launcher
 #================ PRIMITIVES ====================================
@@ -119,11 +119,13 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
 
     #if close, close the line:
     if closeA:
-        cad.shapes.Rectangle((-leng/2, -center/2),
-                (-leng/2+(center-gap)/2, center/2))
+        r1=cad.shapes.Rectangle((-leng/2+(gap-center)/2, -center/2),
+                (-leng/2, center/2))
+        cpwCell.add(r1)
     if closeB:
-        cad.shapes.Rectangle((leng/2, -center/2),
-                (leng/2-(center-gap)/2, center/2))
+        r2=cad.shapes.Rectangle((leng/2, -center/2),
+                (leng/2-(gap-center)/2, center/2))
+        cpwCell.add(r2)
 
 
     #add to the cell
@@ -501,7 +503,7 @@ def fingerCoupler(coords, nfingers, fingerlen, fingerthick, gapheight, gapwidth,
     return couplerCellr
 
 
-def gateLineEnd(coords,linelen,gaplen,center=10*um,gap=19.*um,rot=0):
+def chargeLineEnd(coords,linelen,gaplen,center=10*um,gap=19.*um,rot=0):
     '''
     gateline end
 
@@ -803,7 +805,8 @@ def jLine(coords, totlen, xspan, yspan, nWiggles, rbend=100*um, bridges= True, r
 
 
 def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
-        center=10.*um,gap=19.*um,yOffset=0.,xOffset=0., skew=0, rot=0.):
+        center=10.*um,gap=19.*um,yOffset=0.,xOffset=0., skew=0, closeA = False,
+        closeB= False, rot=0.):
     '''
     make a wiggled transmission line. 
     This function uses CPW and sLine
@@ -844,8 +847,8 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     wiggleCell = cad.core.Cell('WIGGLE')
 
     #left part of straight
-    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset)
-    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset)
+    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA)
+    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB)
     wiggleCell.add([leftLine,rightLine])
     totlenc += straightx
 

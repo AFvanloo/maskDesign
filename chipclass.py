@@ -122,7 +122,7 @@ class Sample:
         self.tapers = 0
         self.crossArrays = 0
         self.fingerCaps = 0
-        self.gateLines = 0
+        self.chargeLines = 0
         self.gateEnds = 0
         self.fluxLines = 0
         self.newname = ''
@@ -267,7 +267,8 @@ class Sample:
 
 
     def addWiggle(self, nWiggle, leng, xspan, placeInfo, xOffset=0,
-            yOffset=0, rbend = None, bridges=True, skew=0, rot=0):
+            yOffset=0, skew=0, rbend = None, bridges=True, closeA = False, closeB =
+            False, rot=0):
         '''
         Add a wiggly CPW
 
@@ -277,17 +278,21 @@ class Sample:
 
         xOffset and its Y variant displace the wiggles compared to the
         start coordinates of the structure
+
+        Set closeA or closeB to True if the wiggle needs to be closed at these
+        endpoints
         '''
 
         if rbend == None: rbend = self.rbend
         
         self.wiggles += 1
         setattr(self, 'wiggle'+str(self.wiggles), Wiggle(self,nWiggle, leng,
-            xspan, placeInfo, xOffset, yOffset, rbend, bridges, skew, rot))
+            xspan, placeInfo, xOffset, yOffset, skew, rbend, bridges, closeA,
+            closeB, rot))
 
         
-    def addSLine(self, yspan, placeInfo, rbend = None, reflect=False, flip=False, enter=True,
-            exit = True, bridges = False,  rot=0):
+    def addSLine(self, yspan, placeInfo, rbend = None, reflect=False,
+            flip=False, enter=True, exit = True, bridges = False,  rot=0):
         '''
         Add an Sline (90 degree arc + CPW + 90 arc
         '''
@@ -638,10 +643,10 @@ class Sample:
 
 
 
-    def addGateLine(self, placeInfoLaunch, placeInfoTransmon, gapLen=25*um,
-            extraline=0, gapOffset = (0,0), endrot=0, startrot=0):
+    def addChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen=25*um,
+            extraline=0, chargeOffset = (0,0), endrot=0, startrot=0):
         '''
-        Add a gateLine from the Launcher connector to a transmon box
+        Add a chargeLine from the Launcher connector to a transmon box
 u
         Options:
         gapLen: length of the gap
@@ -658,11 +663,11 @@ u
 
         '''
 
-        self.gateLines += 1
+        self.chargeLines += 1
 
-        setattr(self, 'gateLine'+str(self.gateLines),
-                GateLine(self, placeInfoLaunch, placeInfoTransmon, gapLen,
-                    extraline, gapOffset, endrot, startrot))
+        setattr(self, 'chargeLine'+str(self.chargeLines),
+                ChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen,
+                    extraline, chargeOffset, endrot, startrot))
 
 
 
@@ -1231,7 +1236,7 @@ class JLine:
 class Wiggle:
     
     def __init__(self, sampleX, nWiggles, leng, xspan, placeInfo, xOffset,
-            yOffset, rbend, bridges, skew, rot):
+            yOffset, skew, rbend, bridges, closeA, closeB, rot):
         '''
         Construct a Wiggles
         '''
@@ -1245,6 +1250,8 @@ class Wiggle:
         self.rbend = rbend
         self.bridges = bridges
         self.skew = skew
+        self.closeA = closeA
+        self.closeB = closeB
         self.rot = rot
         
         #Decide if we have coordinates or connection
@@ -1282,7 +1289,8 @@ class Wiggle:
         #construct object
         self.Cellr, self.yspan = md.nWiggle(self.coords, self.leng, self.xspan, 
                 self.nWiggles, xOffset = self.xOffset, 
-                yOffset = self.yOffset, skew = self.skew, rot=self.rot)
+                yOffset = self.yOffset, skew = self.skew, closeA = self.closeA,
+                closeB = self.closeB, rot=self.rot)
    
 
     def addBridges(self, sampleX):
@@ -1311,15 +1319,15 @@ class Wiggle:
 
 
 
-class GateLine:
+class ChargeLine:
 
     def __init__(self, sampleX, placeInfoLaunch, placeInfoTransmon, gapLen,
-            extraLen, gapOffset, endrot, startrot):
+            extraLen, chargeOffset, endrot, startrot):
 
 
         self.gapLen = gapLen
         self.extraLen = extraLen
-        self.gapOffset = gapOffset
+        self.chargeOffset = chargeOffset
         self.endrot = endrot
 
         #Decide if we have coordinates or connection: For the Launcher
@@ -1333,27 +1341,27 @@ class GateLine:
             self.Lcoords = placeInfoLaunch
             self.Lrot = startrot
            
-        #First, Add a gateLine End
-        self.addGateLineEnd(sampleX, placeInfoTransmon)
+        #First, Add a chargeLine End
+        self.addChargeLineEnd(sampleX, placeInfoTransmon)
 
         routeCell = sampleX.route(placeInfoLaunch, self.gateEndConnect,
                 endrot=self.endrot, rot1 = self.Lrot)
         sampleX.topCell.add(routeCell)
 
 
-    def addGateLineEnd(self, sampleX, placeInfoTransmon):
+    def addChargeLineEnd(self, sampleX, placeInfoTransmon):
         '''
-        Add a CPW + gap, as a gateLine end.
+        Add a CPW + gap, as a chargeLine end.
         Inputs:
             gapLen (taken from default values if not specified)
-            gapOffset (default zero, otherwise a tuple (x, y)
+            chargeOffset (default zero, otherwise a tuple (x, y)
             rot: rotation: ignored if placeInfo is a string
         '''
 
         totLen = self.gapLen + self.extraLen
 
 
-        #PlaceInfo for the Transmon Box, compensated for the gateLineEnd
+        #PlaceInfo for the Transmon Box, compensated for the chargeLineEnd
         if type(placeInfoTransmon) == str:
             #its a connection: get the coordinates!
             compT = getattr(sampleX, placeInfoTransmon.split('.')[0])
@@ -1368,17 +1376,15 @@ class GateLine:
             else:
                 GLErot = self.Lrot
 
-            self.GLcoords = (self.Tcoords[0] + self.gapOffset[0]*np.cos(rad(Trot))
-                    - np.cos(rad(GLErot))*(totLen/2+self.gapOffset[1]),
-                    self.Tcoords[1]-(self.gapOffset[1]+totLen/2)*np.sin(rad(GLErot)) -
-                    np.cos(rad(GLErot))*self.gapOffset[0])
+            self.GLcoords = (self.Tcoords[0] + self.chargeOffset[0]- np.cos(rad(GLErot))*totLen/2,
+                    self.Tcoords[1]-totLen/2*np.sin(rad(GLErot)) + chargeOffset[1])
         else:
             #its coordinates
             self.GLcoords = placeInfoTransmon
             GLErot = self.Lrot
 
         #draw!
-        self.Cell = md.gateLineEnd(self.GLcoords, totLen, self.gapLen, rot=GLErot)
+        self.Cell = md.chargeLineEnd(self.GLcoords, totLen, self.gapLen, rot=GLErot)
 
         #Connector
         self.gateEndConnect = (self.GLcoords[0] - np.cos(rad(GLErot))*(totLen/2),
@@ -1409,7 +1415,7 @@ class FluxLine:
             self.Lcoords = placeInfoLaunch
             self.Lrot = startrot
            
-        #First, Add a gateLine End
+        #First, Add a chargeLine End
         self.addFluxLineEnd(sampleX, placeInfoTransmon)
 
         routeCell = sampleX.route(placeInfoLaunch, self.fluxEndConnect, endrot =
@@ -1418,17 +1424,17 @@ class FluxLine:
 
     def addFluxLineEnd(self, sampleX, placeInfoTransmon):
         '''
-        Add a CPW + gap, as a gateLine end.
+        Add a CPW + gap, as a chargeLine end.
         Inputs:
             gapLen (taken from default values if not specified)
-            gapOffset (default zero, otherwise a tuple (x, y)
+            chargeOffset (default zero, otherwise a tuple (x, y)
             rot: rotation: ignored if placeInfo is a string
         '''
 
         totLen = self.fluxLen + self.extraLine
 
 
-        #PlaceInfo for the Transmon Box, compensated for the gateLineEnd
+        #PlaceInfo for the Transmon Box, compensated for the chargeLineEnd
         if type(placeInfoTransmon) == str:
             #its a connection: get the coordinates!
             compT = getattr(sampleX, placeInfoTransmon.split('.')[0])
@@ -1443,10 +1449,8 @@ class FluxLine:
             else:
                 FLErot = self.Lrot 
 
-            self.FLcoords = (self.Tcoords[0] + self.fluxOffset[0]*np.cos(rad(Trot))
-                    - np.cos(rad(FLErot))*(totLen/2+self.fluxOffset[1]),
-                    self.Tcoords[1]-(self.fluxOffset[1]+totLen/2)*np.sin(rad(FLErot)) -
-                    np.cos(rad(FLErot))*self.fluxOffset[0])
+            self.FLcoords = (self.Tcoords[0] + self.fluxOffset[0] - np.cos(rad(FLErot))*totLen/2,
+                    self.Tcoords[1]+self.fluxOffset[1] - totLen/2*np.sin(rad(FLErot)))
         else:
             #its coordinates
             self.FLcoords = placeInfoTransmon
@@ -1548,7 +1552,6 @@ class CornerTransmonBox:
 
         To put the cornerTransmon at the other side of a CPW, use rotate
         '''
-        
         
         self.shape = shape
         self.offset = offset
