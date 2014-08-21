@@ -644,7 +644,7 @@ class Sample:
 
 
     def addChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen=25*um,
-            extraline=0, chargeOffset = (0,0), endrot=0, startrot=0):
+            extraline=0, chargeOffset=(0,0), endrot=0, startrot=0):
         '''
         Add a chargeLine from the Launcher connector to a transmon box
 u
@@ -664,7 +664,6 @@ u
         '''
 
         self.chargeLines += 1
-
         setattr(self, 'chargeLine'+str(self.chargeLines),
                 ChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen,
                     extraline, chargeOffset, endrot, startrot))
@@ -1377,7 +1376,7 @@ class ChargeLine:
                 GLErot = self.Lrot
 
             self.GLcoords = (self.Tcoords[0] + self.chargeOffset[0]- np.cos(rad(GLErot))*totLen/2,
-                    self.Tcoords[1]-totLen/2*np.sin(rad(GLErot)) + chargeOffset[1])
+                    self.Tcoords[1]-totLen/2*np.sin(rad(GLErot)) + self.chargeOffset[1])
         else:
             #its coordinates
             self.GLcoords = placeInfoTransmon
