@@ -452,14 +452,11 @@ class Sample:
                 fingerThick, gapHeight, gapWidth, taperLen, centerLen, flip, rot=rot))
 
     def addAirbridge(self, placeInfo, bridgeLenX=None, bridgeLenY=None,
-            footerLen = None, irGap=None, reflowGap = None, layers=None,rot=0):
+            footerLen = None, irGap=None, reflowGap = None, layers=None,
+            offset=(0,0),rot=0):
         '''
-        Add a single or multiple airbridges. 
-
         All options (except placeInfo and rot) are taken from the config dict,
         Unless if specified otherwise by YOU!
-
-        For the placing, there are quite a few options for 
         '''
 
         #Set the default Values
@@ -474,7 +471,7 @@ class Sample:
         self.fingerCouplers += 1
         setattr(self, 'airBridge'+str(self.airbridges),
                 AirBridge(self, placeInfo, bridgeLenX, bridgeLenY, footerLen, 
-                    irGap, reflowGap, layers, rot=rot))
+                    irGap, reflowGap, layers, offset, rot=rot))
     
     def addTaper(self, taperLen, placeInfo, startCenter, endCenter=None, abr = None, rot=0):
         '''
@@ -1076,7 +1073,8 @@ class DoubleArc:
         sampleX.topCell.add(self.Cell)
 
     def makeCell(self):
-        self.Cell, b = md.doubleArc(self.coords, self.dy, rot = self.rot)
+        self.Cell, b = md.doubleArc(self.coords, self.dy, rot = self.rot,
+                rbend=self.rbend)
 
         
 class SLine:
@@ -1109,20 +1107,20 @@ class SLine:
                 if reflect:
                      self.coords = (self.cp[0] - self.rbend*np.cos(rad(self.rot)) +
                         self.yspan/2.*np.sin(rad(self.rot)), self.cp[1] +
-                        self.yspan/2.*np.cos(rad(self.rot)) +self.rbend*np.sin(rad(self.rot)))
+                        self.yspan/2.*np.cos(rad(self.rot)) +self.exit*self.rbend*np.sin(rad(self.rot)))
                 else:
                     self.coords = (self.cp[0] - self.rbend*np.cos(rad(self.rot)) -
                         self.yspan/2.*np.sin(rad(rot)), self.cp[1] -
-                        self.yspan/2.*np.cos(rad(self.rot)) + self.rbend*np.sin(rad(self.rot)))
+                        self.yspan/2.*np.cos(rad(self.rot)) + self.enter*self.rbend*np.sin(rad(self.rot)))
             else:
                 if reflect:
                      self.coords = (self.cp[0] + self.rbend*np.cos(rad(self.rot)) -
                         self.yspan/2.*np.sin(rad(self.rot)), self.cp[1] +
-                        self.yspan/2.*np.cos(rad(self.rot)) -self.rbend*np.sin(rad(self.rot)))
+                        self.yspan/2.*np.cos(rad(self.rot)) -self.exit*self.rbend*np.sin(rad(self.rot)))
                 else:
                     self.coords = (self.cp[0] + self.rbend*np.cos(rad(self.rot)) +
                         self.yspan/2.*np.sin(rad(rot)), self.cp[1] +
-                        self.yspan/2.*np.cos(rad(self.rot)) - self.rbend*np.sin(rad(self.rot)))
+                        self.yspan/2.*np.cos(rad(self.rot)) - self.enter*self.rbend*np.sin(rad(self.rot)))
         else:
             #its coordinates
             self.coords = placeInfo
@@ -1131,17 +1129,17 @@ class SLine:
         if self.reflect:
             self.connectB = (self.coords[0] - self.rbend*np.cos(rad(self.rot)) +
                     self.yspan/2.*np.sin(rad(self.rot)), self.coords[1] -
-                    self.yspan/2.*np.cos(rad(self.rot)) + self.rbend*np.sin(rad(self.rot)))
+                    self.yspan/2.*np.cos(rad(self.rot)) + self.exit*self.rbend*np.sin(rad(self.rot)))
             self.connectA = (self.coords[0] - self.rbend*np.cos(rad(self.rot)) -
                     self.yspan/2.*np.sin(rad(self.rot)), self.coords[1] +
-                    self.yspan/2.*np.cos(rad(self.rot)) - self.rbend*np.sin(rad(self.rot)))
+                    self.yspan/2.*np.cos(rad(self.rot)) - self.enter*self.rbend*np.sin(rad(self.rot)))
         else:
             self.connectB = (self.coords[0] + self.rbend*np.cos(rad(self.rot)) -
                     self.yspan/2.*np.sin(rad(self.rot)), self.coords[1] +
-                    self.yspan/2.*np.cos(rad(self.rot)) + self.rbend*np.sin(rad(self.rot)))
+                    self.yspan/2.*np.cos(rad(self.rot)) + self.exit*self.rbend*np.sin(rad(self.rot)))
             self.connectA = (self.coords[0] - self.rbend*np.cos(rad(self.rot)) +
                     self.yspan/2.*np.sin(rad(self.rot)), self.coords[1] -
-                    self.yspan/2.*np.cos(rad(self.rot)) - self.rbend*np.sin(rad(self.rot)))
+                    self.yspan/2.*np.cos(rad(self.rot)) - self.enter*self.rbend*np.sin(rad(self.rot)))
 
 
         #make the cell
@@ -1614,7 +1612,7 @@ class CornerTransmonBox:
 class AirBridge:
 
     def __init__(self, sampleX, placeInfo, bridgeLenX, bridgeLenY, footerLen,
-            irGap, reflowGap, layers, rot):
+            irGap, reflowGap, layers, offset, rot):
         '''
         Initialize the Airbridge
 
@@ -1627,19 +1625,16 @@ class AirBridge:
         self.irGap = irGap
         self.reflowGap = reflowGap
         self.layers = layers
+        self.offset = offset
         self.rot = rot
 
         #Decide if we have coordinates or connection
-        if type(placeInfo) ==  list:
-            if type(placeInfo[0]) == str:
-                print 'PlaceInfo not completely implemented yet'
-            else:
-                print 'PlaceInfo not completely implemented yet'
         if type(placeInfo) == str:
             print 'PlaceInfo not completely implemented yet'
             #its a connection: put one airbridge perpendicular to whatever I got
             comp = getattr(sampleX, placeInfo.split('.')[0])
-            self.coords = getattr(comp, placeInfo.split('.')[1])
+            self.cp = getattr(comp, placeInfo.split('.')[1])
+            self.coords = (self.cp[0]+self.offset[0], self.cp[1]+self.offset[1])
         if type(placeInfo) == tuple:
             #its coordinates
             self.coords = placeInfo
