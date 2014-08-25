@@ -473,7 +473,7 @@ class Sample:
         if layers == None:      layers =  self.ABlayers
 
         #Build the finger coupler
-        self.fingerCouplers += 1
+        self.airbridges += 1
         setattr(self, 'airBridge'+str(self.airbridges),
                 Airbridge(self, placeInfo, bridgeLenX, bridgeLenY, footerLen, 
                     irGap, reflowGap, layers, offset, rot=rot))
@@ -615,7 +615,7 @@ class Sample:
 
 
 
-    def addText(self, text, fontSize=200*um, placeInfo=None, font = None, rot=0, layer=0):
+    def addText(self, text, placeInfo=None, fontSize = 200*um, font = None, rot=0, layer=0):
         '''
         Add labels to the chip
 
@@ -752,7 +752,7 @@ u
         elif self.startrot == 0:
             tdx = -dy
             tdy = dx
-            rotBack = -90
+            rotBack = 270
         elif self.startrot == 270 or -90:
             tdx = -dx
             tdy = -dy
@@ -769,7 +769,7 @@ u
 
         routeCell = md.CPWroute(self.startcoords, tdx, tdy, rot = rotBack,
                 endrot=endrot) 
-        return routeCell
+        self.topCell.add(routeCell)
 
 
     def save(self):
@@ -1066,10 +1066,10 @@ class DoubleArc:
             self.coords = placeInfo
 
         #Define Connectors
-        self.connectB = (self.coords[0] - self.dy/2*np.sin(rad(self.rot)) -
+        self.connectA = (self.coords[0] - self.dy/2*np.sin(rad(self.rot)) -
                 self.xspan/2.*np.cos(rad(self.rot)), self.coords[1] +
                 self.xspan/2.*np.sin(rad(self.rot)) - self.dy/2*np.cos(rad(self.rot)))
-        self.connectA = (self.coords[0] + self.dy/2*np.sin(rad(self.rot)) +
+        self.connectB = (self.coords[0] + self.dy/2*np.sin(rad(self.rot)) +
                 self.xspan/2.*np.cos(rad(self.rot)), self.coords[1] +
                 self.xspan/2.*np.sin(rad(self.rot)) + self.dy/2*np.cos(rad(self.rot)))
 
@@ -1119,7 +1119,7 @@ class SLine:
             else:
                 if reflect:
                      self.coords = (self.cp[0] + self.rbend*np.cos(rad(self.rot)) -
-                        self.yspan/2.*np.sin(rad(self.rot)), self.cp[1] +
+                        self.yspan/2.*np.sin(rad(self.rot)), self.cp[1] -
                         self.yspan/2.*np.cos(rad(self.rot)) -self.exit*self.rbend*np.sin(rad(self.rot)))
                 else:
                     self.coords = (self.cp[0] + self.rbend*np.cos(rad(self.rot)) +
@@ -1274,10 +1274,9 @@ class Wiggle:
 
         #make the cell
         self.makeCell()
- 
-        if bridges:
+
+        if bridges != False:
             self.addBridges(sampleX)
-            sampleX.topCell.add(self.abCellr)
 
         #add Wigglecell to topCell
         sampleX.topCell.add(self.Cellr)
@@ -1301,20 +1300,48 @@ class Wiggle:
 
         #multiplier to get the wiggles at the right spot 
         m = (-1)**(self.nWiggles/2)
-        if self.nWiggles%2 == 1:
-            ab1 = md.airBridge((self.xOffset - 2*self.rbend, self.yOffset - m*self.yspan),
-                    rot = 90)
-            ab2 = md.airBridge((self.xOffset + 2*self.rbend, self.yOffset - m*self.yspan),
-                    rot = 90)
-        else: 
-            ab1 = md.airBridge((self.xOffset - self.rbend, self.yOffset - m*self.yspan),
-                    rot = 90)
-            ab2 = md.airBridge((self.xOffset + self.rbend, self.yOffset + m*self.yspan),
-                    rot = 90)
 
-        abCell.add([ab1, ab2])
-        self.abCellr = cad.core.CellReference(abCell, origin=self.coords)
-        self.abCellr.rotate(self.rot)
+        #Determine: single or multiple wiggles
+        if self.bridges == True: #just two bridges
+            xlocs = [self.xOffset - (1+(self.nWiggles%2==1))*self.rbend,
+                    self.xOffset + (1+(self.nWiggles%2==1))*self.rbend]
+        if self.bridges == 'more':
+            print 'more bridges'
+            nbridges = self.nWiggles/2
+            wigDis = 4*self.rbend 
+            wigStart = (1+(self.nWiggles%2==1))*self.rbend 
+            print 'wigStart is: ', wigStart
+            xlocs1 = np.arange(self.xOffset - wigStart, self.xOffset - wigDis*(nbridges+1)/2, -wigDis)
+            xlocs2 = np.arange(self.xOffset + wigStart, self.xOffset + wigDis*(nbridges+1)/2, wigDis)
+            xlocs = np.concatenate([xlocs1, xlocs2])
+            print xlocs
+
+            #Put the wiggles
+            for x in xlocs:
+                if self.nWiggles%2==0:
+                    ab = md.airBridge((x, self.yOffset-np.sign(x)*-m*self.yspan), rot=90)
+                else:
+                    ab = md.airBridge((x, self.yOffset+self.yspan), rot=90)
+                abCell.add(ab)
+
+        
+        m = (-1)**(self.nWiggles/2)
+        if self.bridges == True:
+            if self.nWiggles%2 == 1:
+                ab1 = md.airBridge((self.xOffset - 2*self.rbend, self.yOffset - m*self.yspan),
+                        rot = 90)
+                ab2 = md.airBridge((self.xOffset + 2*self.rbend, self.yOffset - m*self.yspan),
+                        rot = 90)
+            else: 
+                ab1 = md.airBridge((self.xOffset - self.rbend, self.yOffset - m*self.yspan),
+                        rot = 90)
+                ab2 = md.airBridge((self.xOffset + self.rbend, self.yOffset + m*self.yspan),
+                        rot = 90)
+            abCell.add([ab1, ab2])
+
+        abCellr = cad.core.CellReference(abCell, origin=self.coords)
+        abCellr.rotate(self.rot)
+        sampleX.topCell.add(abCellr)
 
 
 
@@ -1343,9 +1370,8 @@ class ChargeLine:
         #First, Add a chargeLine End
         self.addChargeLineEnd(sampleX, placeInfoTransmon)
 
-        routeCell = sampleX.route(placeInfoLaunch, self.gateEndConnect,
+        sampleX.route(placeInfoLaunch, self.gateEndConnect,
                 endrot=self.endrot, rot1 = self.Lrot)
-        sampleX.topCell.add(routeCell)
 
 
     def addChargeLineEnd(self, sampleX, placeInfoTransmon):
@@ -1417,9 +1443,8 @@ class FluxLine:
         #First, Add a chargeLine End
         self.addFluxLineEnd(sampleX, placeInfoTransmon)
 
-        routeCell = sampleX.route(placeInfoLaunch, self.fluxEndConnect, endrot =
+        sampleX.route(placeInfoLaunch, self.fluxEndConnect, endrot =
                 self.endrot, rot1 = self.Lrot)
-        sampleX.topCell.add(routeCell)
 
     def addFluxLineEnd(self, sampleX, placeInfoTransmon):
         '''
@@ -1632,7 +1657,6 @@ class Airbridge:
 
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
-            print 'PlaceInfo not completely implemented yet'
             #its a connection: put one airbridge perpendicular to whatever I got
             comp = getattr(sampleX, placeInfo.split('.')[0])
             self.cp = getattr(comp, placeInfo.split('.')[1])
@@ -1785,10 +1809,10 @@ class FingerCoupler:
             #Adjust for the size of the component
             if flip:
                 self.coords = (self.cp[0] - self.leng/2.*np.cos(rad(rot)),
-                        self.cp[1] + self.leng/2.*np.sin(rad(rot)))
+                        self.cp[1] - self.leng/2.*np.sin(rad(rot)))
             else:
                 self.coords = (self.cp[0] + self.leng/2.*np.cos(rad(rot)),
-                        self.cp[1] - self.leng/2.*np.sin(rad(rot)))
+                        self.cp[1] + self.leng/2.*np.sin(rad(rot)))
         else:
             #its coordinates
             self.coords = placeInfo
