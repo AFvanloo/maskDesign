@@ -220,8 +220,8 @@ def lunmpedParamp(label = 'LP1', exportName = './wafer1/LumpedParamp1.gds', expo
     LP.fileName = exportName
 
     #the first part of the params: use a launcher with non-default options
-    LP.launcherPositions = [0,4]
-    LP.addLaunchers(center=100*um, gap=1.9*100*um)
+    Lp.launcherPositions = [0,4]
+    Lp.addLaunchers(center=100*um, gap=1.9*100*um)
 
     #add fingerCaps
     LP.addFingerCap(14, (iX-dX/2-cap1Len/2, iY), fingerLen=finger1Len, fingerThick = thick1,
@@ -280,9 +280,9 @@ def lunmpedParamp(label = 'LP1', exportName = './wafer1/LumpedParamp1.gds', expo
     bdy = cad.core.Boundary(alPoints)
     alCell.add(bdy)
     alCellr1 = cad.core.CellReference(alCell)
-    alCellr2 = cad.core.CellReference(alCell, rotation=-90)
-    alCellr3 = cad.core.CellReference(alCell, rotation=-180)
-    alCellr4 = cad.core.CellReference(alCell, rotation=-270)
+    alCellr2 = cad.core.CellReference(alCell, rotation=270)
+    alCellr3 = cad.core.CellReference(alCell, rotation=180)
+    alCellr4 = cad.core.CellReference(alCell, rotation=90)
     
     alCell2.add([alCellr1, alCellr2, alCellr3, alCellr4])
     alCell2r = cad.core.CellReference(alCell2, origin=(iX+dX/2+boxSize/2, iY))
@@ -305,6 +305,101 @@ def lunmpedParamp(label = 'LP1', exportName = './wafer1/LumpedParamp1.gds', expo
 
     return LP
 
+
+def lumpedParamps(label='MLP', exportName = './wafer1/multiLumpedParamp.gds',
+        export=False):
+
+
+    
+    #Initialize sample. Paramp has no normal launchers
+    LPs = cc.Sample(1,label=label, labelPos = (-2.2*mm,-1*mm))
+    LPs.fileName = exportName
+
+    #the first part of the params: use a launcher with non-default options
+    LPs.launcherPositions = range(1,4)+range(5,8)
+    LPs.addLaunchers(center=100*um, gap=1.9*100*um)
+
+    #Figure out the x-spacing of launchers
+    x = LPs.launcher3.coords[0]
+
+    #set the islandsize of vertical paramps to 100um
+    isl = 100*um
+    vsize = isl+200*um #add twice default length of fingerCap1
+
+    #add lumped element paramps
+    #LP1 = md.lumpedParamp((-2.8*mm,0), islandX=300*um, nFinger1=20, nFinger2=10, rot=0)
+    LP2 = md.lumpedParamp((-x,.5*mm-vsize/2), islandX=isl, nFinger1=18, nFinger2=9, rot=270)
+    LP3 = md.lumpedParamp((0,.5*mm-vsize/2), islandX=isl, nFinger1=16,nFinger2=8, rot=270)
+    LP4 = md.lumpedParamp((x,.5*mm-vsize/2), islandX=isl, nFinger1=14, nFinger2=7, rot=270)
+    #LP5 = md.lumpedParamp((2.8*mm,0), islandX=300*um, nFinger1=12, nFinger2=6, rot=180)
+    LP6 = md.lumpedParamp((x,-.5*mm+vsize/2), islandX=isl, nFinger1=10, nFinger2=5, rot=90)
+    LP7 = md.lumpedParamp((0,-.5*mm+vsize/2), islandX=isl, nFinger1=8, nFinger2=4, rot=90)
+    LP8 = md.lumpedParamp((-x,-.5*mm+vsize/2), islandX=isl, nFinger1=8, nFinger2=6, rot=90)
+
+    LPs.topCell.add([LP2, LP3, LP4, LP6, LP7, LP8])
+
+    #add boundaries:
+    hthick = 50*um #half of the thickness
+    rH = cad.shapes.Rectangle((-3.5*mm, -hthick),(3.5*mm, hthick)) 
+    rV1 = cad.shapes.Rectangle((-x/2-hthick, -1*mm),(-x/2+hthick, 1*mm)) 
+    rV2 = cad.shapes.Rectangle((x/2-hthick, -1*mm),(x/2+hthick, 1*mm)) 
+
+    LPs.topCell.add([rH, rV1, rV2])
+
+    LPs.show()
+
+    if export == True:
+        LPs.save()
+
+    return LPs
+
+
+def lumpedParampsFourPoint(label='', exportName = './wafer1/lumpedParampsFourPoint.gds',
+        export=False, show=True):
+    
+    #Initialize sample. Paramp has no normal launchers
+    LPs = cc.Sample(1,label=label, labelPos = (-2.2*mm,-1*mm), alignPos=[])
+    LPs.fileName = exportName
+
+    #the first part of the params: use a launcher with non-default options
+    LPs.launcherPositions = [1,3,5,7]
+    LPs.addLaunchers(center=100*um, gap=1.9*100*um)
+
+    #Figure out the x-spacing of launchers
+    x = LPs.launcher3.coords[0]
+
+    #set the islandsize of vertical paramps to 100um
+    isl = 100*um
+    vsize = isl+200*um #add twice default length of fingerCap1
+
+    #add lumped element paramps
+    LP1 = md.lumpedParamp((-x,.5*mm-vsize/2), islandX=isl, nFinger1=18, nFinger2=9, rot=270)
+    LP3 = md.lumpedParamp((x,.5*mm-vsize/2), islandX=isl, nFinger1=14, nFinger2=7, rot=270)
+    LP5 = md.lumpedParamp((x,-.5*mm+vsize/2), islandX=isl, nFinger1=10, nFinger2=5, rot=90)
+    LP7 = md.lumpedParamp((-x,-.5*mm+vsize/2), islandX=isl, nFinger1=8, nFinger2=4, rot=90)
+    LPs.topCell.add([LP1, LP3, LP5, LP7])
+
+    #add a fourpoint measurement thing
+    fP = md.fourPoint((0,0))
+    LPs.topCell.add(fP)
+
+
+
+    #add boundaries:
+    hthick = 50*um #half of the thickness
+    rH1 = cad.shapes.Rectangle((-3.5*mm, -hthick),(-x/2-hthick, hthick)) 
+    rH2 = cad.shapes.Rectangle((x/2+hthick, -hthick),(3.5*mm, hthick)) 
+    rV1 = cad.shapes.Rectangle((-x/2-hthick, -1*mm),(-x/2+hthick, 1*mm)) 
+    rV2 = cad.shapes.Rectangle((x/2-hthick, -1*mm),(x/2+hthick, 1*mm)) 
+    LPs.topCell.add([rH1, rH2, rV1, rV2])
+
+    if show:
+        LPs.show()
+
+    if export == True:
+        LPs.save()
+
+    return LPs
 
     #Inductor _ NOT NEEDED!
 #    thin = 4*um
@@ -365,29 +460,6 @@ def lunmpedParamp(label = 'LP1', exportName = './wafer1/LumpedParamp1.gds', expo
 
     #LP.topCell.add(inCellr)
             
-
-    
-
-
-
-def generateUsual(export = False, show=True):
-
-    #Single Params
-    P1 = singleParamp(11.37, 'P1', exportName = './wafer1/paramp11_37.gds', export=export, show=show)
-    P2 = singleParamp(15.4, 'P2', exportName = './wafer1/paramp15_4.gds', export = export, show=show)
-    P3 = singleParamp(17.8, 'P3', exportName = './wafer1/paramp17_8.gds', export=export, show=show)
-    
-    #Double Paramps
-    P4 = doubleParamp(15.34, 15.34, 'P4',
-            exportName='./wafer1/doubleParamp15_34.gds', export=export,
-            show=show)
-    P5 = doubleParamp(17.8, 17.8, 'P5',
-            exportName='./wafer1/doubleParamp17_8.gds', export=export, show=show)
-    P6 = doubleParamp(11.38, 15.34, 'P6',
-            exportName='./wafer1/doubleParamp11_38_and_15_34.gds',
-            export=export, show=show)
-
-    #Lumped Element
 
     
 
