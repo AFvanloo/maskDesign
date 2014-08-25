@@ -383,8 +383,6 @@ def lumpedParampsFourPoint(label='', exportName = './wafer1/lumpedParampsFourPoi
     fP = md.fourPoint((0,0))
     LPs.topCell.add(fP)
 
-
-
     #add boundaries:
     hthick = 50*um #half of the thickness
     rH1 = cad.shapes.Rectangle((-3.5*mm, -hthick),(-x/2-hthick, hthick)) 
@@ -400,6 +398,8 @@ def lumpedParampsFourPoint(label='', exportName = './wafer1/lumpedParampsFourPoi
         LPs.save()
 
     return LPs
+
+#   modification
 
     #Inductor _ NOT NEEDED!
 #    thin = 4*um
