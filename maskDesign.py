@@ -12,6 +12,7 @@ defaults = dp.dPars()
 #ChargeLines/FluxLines
 #Easy way to add airbridges
 
+print 'starting maskDesign'
 
 #inner conductor
 # ic-to-ground distance
