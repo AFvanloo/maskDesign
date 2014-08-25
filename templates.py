@@ -475,44 +475,32 @@ def openTrans4qbC(freq=7.2, label='',
             labelPos=(-3.15*mm, .55*mm))
     OT.fileName = exportName
 
-    OT.addText('D17_v2', (-3.25*mm, .2*mm), fontSize = 350*um,
-            font='gothgbt',rot=90)
+    OT.addText('D17_v2', (-3.4*mm, 1.75*mm), fontSize = 450*um,
+            font='gothgbt',rot=0)
 
     #calculate length between qubits
     #load length of a 6.5GHz lambdahalf resonator
     lambdahalf65 = defaults['lambdahalf65']
     transLen = 2*lambdahalf65/freq*6.5
-    skewDis = 500*um
+    skewDis = 900*um
     #start and end with a CPW, so that the transmons can be connected at wiggle ends
-    OT.addSLine(skewDis, 'launcher0.connect', reflect=True)
-    OT.addCPW(250*um, 'sLine1.connectB')
+    OT.addSLine(skewDis, 'launcher0.connect', reflect=True, bridges=True)
+    OT.addCPW(160*um, 'sLine1.connectB')
     #OT.addWiggle(6, transLen, 1.7*mm, 'launcher0.connect', bridges='more')
-    OT.addWiggle(6, transLen, 1.7*mm, 'CPW1.connectB', bridges='more',
+    OT.addWiggle(5, transLen, 1.6*mm, 'CPW1.connectB', bridges='more',
             skew=skewDis, yOffset=0)
-    OT.addWiggle(6, transLen, 1.7*mm, 'wiggle1.connectB', bridges='more',
+    OT.addWiggle(8, transLen, 2.08*mm, 'wiggle1.connectB', bridges='more',
             skew=-skewDis, yOffset=0)
-    OT.addWiggle(6, transLen, 1.7*mm, 'wiggle2.connectB', bridges='more',
+    OT.addWiggle(5, transLen, 1.6*mm, 'wiggle2.connectB', bridges='more',
             skew=skewDis, yOffset=0)
-    OT.addCPW(250*um, 'wiggle3.connectB')
-    OT.addSLine(skewDis, 'CPW2.connectB', reflect=True)
+    OT.addCPW(160*um, 'wiggle3.connectB')
+    OT.addSLine(skewDis, 'CPW2.connectB', reflect=True, bridges=True)
 
     #add Transmons
     OT.addTransmonBox('wiggle1.connectA', offset=(0,0))
     OT.addTransmonBox('wiggle2.connectA', offset=(0,0), flip=True)
     OT.addTransmonBox('wiggle3.connectA', offset=(0,0))
     OT.addTransmonBox('wiggle3.connectB', offset=(0,0), flip=True)
-
-    #manual airbridges at launchers and qubits
-    OT.addAirbridge('launcher0.connect', offset=(50*um, 0), rot=90)
-    OT.addAirbridge('launcher4.connect', offset=(-50*um, 0), rot=90)
-
-    #A few more at qubits
-    #OT.addAirbridge('transmonBox1.connectB', offset=(0*um, -100*um), rot=0)
-    #OT.addAirbridge('transmonBox1.connectB', offset=(100*um, -240*um), rot=90)
-    #OT.addAirbridge('transmonBox2.connectB', offset=(0*um, -100*um), rot=0)
-    #OT.addAirbridge('transmonBox2.connectB', offset=(0*um, -240*um), rot=0)
-    #OT.addAirbridge('transmonBox3.connectB', offset=(0*um, -100*um), rot=0)
-    #OT.addAirbridge('transmonBox3.connectB', offset=(-100*um, -240*um), rot=90)
 
     #charge Lines
     OT.addChargeLine('launcher7.connect', 'transmonBox1.connectB')

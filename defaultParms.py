@@ -51,8 +51,8 @@ def dPars():
             'ABirGap'               : 40*um,
             'ABlayers'              : (2,1,25),
             'ABdistance'            : 200*um,
-            'ABstart'               : 200*um,   #start and end distance for airbridges
-            'ABend'                 : 200*um,
+            'ABstart'               : 100*um,   #start and end distance for airbridges
+            'ABend'                 : 100*um,
             'transmonWidth'         : 300*um,
             'transmonHeight'        : 150*um,
             'cornerTransmonWidht'   : 300*um,

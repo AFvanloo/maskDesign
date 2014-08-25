@@ -1310,27 +1310,33 @@ class Wiggle:
             nbridges = self.nWiggles/2
             wigDis = 4*self.rbend 
             wigStart = (1+(self.nWiggles%2==1))*self.rbend 
-            print 'wigStart is: ', wigStart
-            xlocs1 = np.arange(self.xOffset - wigStart, self.xOffset - wigDis*(nbridges+1)/2, -wigDis)
-            xlocs2 = np.arange(self.xOffset + wigStart, self.xOffset + wigDis*(nbridges+1)/2, wigDis)
+            if self.nWiggles%2==1:
+                xlocs1 = np.arange(self.xOffset - wigStart, self.xOffset - wigDis*(nbridges+1)/2, -wigDis)
+                xlocs2 = np.arange(self.xOffset + wigStart, self.xOffset + wigDis*(nbridges+1)/2, wigDis)
+            else:
+                xlocs1 = np.arange(self.xOffset - wigStart, self.xOffset - wigDis*(nbridges)/2, -wigDis)
+                xlocs2 = np.arange(self.xOffset + wigStart, self.xOffset + wigDis*(nbridges)/2, wigDis)
             xlocs = np.concatenate([xlocs1, xlocs2])
             print xlocs
 
             #Put the wiggles
             for x in xlocs:
                 if self.nWiggles%2==0:
+                    m = (-1)**(self.nWiggles/2)
                     ab = md.airBridge((x, self.yOffset-np.sign(x)*-m*self.yspan), rot=90)
                 else:
-                    ab = md.airBridge((x, self.yOffset+self.yspan), rot=90)
+                    m = (-1)**((self.nWiggles+1)/2)
+                    ab = md.airBridge((x, self.yOffset+m*self.yspan), rot=90)
                 abCell.add(ab)
 
         
         m = (-1)**(self.nWiggles/2)
         if self.bridges == True:
             if self.nWiggles%2 == 1:
-                ab1 = md.airBridge((self.xOffset - 2*self.rbend, self.yOffset - m*self.yspan),
+                m = (-1)**((self.nWiggles+1)/2)
+                ab1 = md.airBridge((self.xOffset - 2*self.rbend, self.yOffset + m*self.yspan),
                         rot = 90)
-                ab2 = md.airBridge((self.xOffset + 2*self.rbend, self.yOffset - m*self.yspan),
+                ab2 = md.airBridge((self.xOffset + 2*self.rbend, self.yOffset + m*self.yspan),
                         rot = 90)
             else: 
                 ab1 = md.airBridge((self.xOffset - self.rbend, self.yOffset - m*self.yspan),
