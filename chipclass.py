@@ -1131,7 +1131,7 @@ class SLine:
 
         #Connector locations
         if self.reflect:
-            self.connectB = (self.coords[0] - self.rbend*np.cos(rad(self.rot)) +
+            self.connectB = (self.coords[0] + self.rbend*np.cos(rad(self.rot)) +
                     self.yspan/2.*np.sin(rad(self.rot)), self.coords[1] -
                     self.yspan/2.*np.cos(rad(self.rot)) + self.exit*self.rbend*np.sin(rad(self.rot)))
             self.connectA = (self.coords[0] - self.rbend*np.cos(rad(self.rot)) -

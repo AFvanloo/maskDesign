@@ -105,7 +105,6 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
     cpwCell = cad.core.Cell('CPW')
     startx, starty = coords
 
-
     #points in the path
     guppoints = [(-leng/2, center/2.),(leng/2, center/2.),
             (leng/2, gap/2.),(-leng/2., gap/2.)]
@@ -155,7 +154,7 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
 
         #add to main cell
         cpwCell.add(bridgeCell)
-    
+
     cpwCellr = cad.core.CellReference(cpwCell,rotation=rot)
     cpwCellr.translate(coords)
 
@@ -316,14 +315,14 @@ def transmonBoxAlign(coords,shape, almarks = [2,2], rot=0):
     smallDis = 250*um
 
     for i in range(len(almarks)):
+        ym = (-1)**i
         if almarks[i]==2:
-            ym = (-1)**i
             transmonCell.add(bCross,origin=(bigDis/2, ym*bigDis/2))
             transmonCell.add(bCross,origin=(-bigDis/2, ym*bigDis/2))
             transmonCell.add(sCross,origin=(smallDis/2, ym*smallDis/2))
             transmonCell.add(sCross,origin=(-smallDis/2, ym*smallDis/2))
         elif almarks[i]==1:
-            transmonCell.add(bCross,origin=(0,bigDis/2))
+            transmonCell.add(bCross,origin=(0,ym*bigDis/2))
             transmonCell.add(sCross,origin=(0,ym*smallDis/2))
         elif almarks[i]==0:
             continue
@@ -556,7 +555,7 @@ def fluxLineEnd(coords,totlen,fluxlen=40*um,taplen=10*um, fluxgap=2*um,
                 (taplen, -fluxwidth/2.),
                 (fluxlen-fluxgap, -fluxwidth/2.),
                 (fluxlen-fluxgap, -fluxgap/2.),
-                (taplen, -fluxgap),
+                (taplen, -fluxgap/2),
                 (0, -center/2.)]
     fluxendup = cad.core.Boundary(fluxpointsup)  
     fluxenddown = cad.core.Boundary(fluxpointsdown)  
@@ -887,7 +886,7 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     
     return wiggleCellr, yspan
 
-def CPWroute(coords, dx, dy, downBend = 0, bridges = True, rot=0, endrot=0):
+def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
     '''
     route a CPW from point (0,0) to (dx, dy)
     This function assumes dy to be positive. If you need negative dy, use rotate
@@ -910,28 +909,19 @@ def CPWroute(coords, dx, dy, downBend = 0, bridges = True, rot=0, endrot=0):
         yspan = 2*rbend*np.sin(phirad)
 
     #check in which direction to bend
-    if dx >= 2*rbend and downBend == False:
+    if dx >= 2*rbend: 
         sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=True, rot=90)
         cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
-    elif dx <= -2*rbend and downBend == False:
+    elif dx <= -2*rbend:
         sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=True, rot=90)
         cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
-    elif 0 <= dx <= 2*rbend and downBend == False:
-        sCell, yspanc = doubleArc((dx/2, yspan/2), dx)
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, rot=90)
-    elif -2*rbend < dx <= 0  and downBend == False:
-        sCell, yspanc = doubleArc((dx/2, yspan/2), dx)
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, rot=90)
+    elif 0 <= dx <= 2*rbend:
+        sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+    elif -2*rbend < dx <= 0:
+        sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
     routeCell.add([sCell, cCell])
-
-
-    if downBend == True and abs(dx)< 4*rbend:
-        raise ValueError, 'downBend cannot be used within such a small interval'
-
-    if downBend == True and dx > 4*rbend:
-        pass
-
-
 
     #Take care of the endrot
     if endrot == 'r':
@@ -941,16 +931,11 @@ def CPWroute(coords, dx, dy, downBend = 0, bridges = True, rot=0, endrot=0):
         arcCell = CPWArc((dx-rbend, dy), 0, 90)
         routeCell.add(arcCell)
 
-    
-
     #rotate and translate
     routeCellr = cad.core.CellReference(routeCell, rotation = rot)
     routeCellr.translate(coords)
 
     return routeCellr
-
-
-
 
 def resonator(coords, totlen, xspan, transmons=['lurd'], capacitors=['f3g'],  xoffset=0, yoffset=0, rotation=0):
     '''
@@ -1195,7 +1180,7 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
     F2 = fingerCap((0,finger1Thick/2+cap2Len/2), nFinger2, finger2Len, thick2,
             thick2, thick2, rot=90)
     F3 = fingerCap((0,-finger1Thick/2 - cap2Len/2), nFinger2, finger2Len,
-            thick2, thick2, thick2, rot=-90)
+            thick2, thick2, thick2, rot=270)
     LPCell.add([F1,F2,F3])
 
     #Squares
@@ -1212,6 +1197,7 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
     #AlignBox
     alCell = cad.core.Cell('AL')
     alCell2 = cad.core.Cell('AL2')
+    alCell3 = cad.core.Cell('AL3')
     alDist = 150*um
     boxSize = 200*um
     crossSize = 10*um
@@ -1246,10 +1232,11 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
 
     bdy = cad.core.Boundary(alPoints)
     alCell.add(bdy)
-    alCellr1 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0))
-    alCellr2 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0), rotation=-90)
-    alCellr3 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0), rotation=-180)
-    alCellr4 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0), rotation=-270)
+    alCellr1 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0),rotation=0)
+    alCellr2 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0), rotation=270)
+    alCellr3 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0), rotation=180)
+    alCellr4 = cad.core.CellReference(alCell, origin=(dX/2+boxSize/2, 0),
+            rotation=-270)
     alCell2.add([alCellr1, alCellr2, alCellr3, alCellr4])
 
     #add to topCell
@@ -1262,7 +1249,8 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
             (dX/2+boxSize, -cap2Len-finger1Thick/2))
     LPCell.add([r5,r6])
     
-    #rotate and translate
+    
+    #flatten, rotate and translate
     LPCellr = cad.core.CellReference(LPCell, rotation=rot)
     LPCellr.translate(coords)
 
