@@ -92,7 +92,11 @@ class Sample:
         self.irGap = defaults['ABirGap']
         self.ABlayers = defaults['ABlayers']
 
+        #CPW bridge options
         self.bridgeDistance = defaults['ABdistance']
+        self.bridgeStart = defaults[ 'ABstart']
+        self.bridgeEnd = defaults['ABend']
+       
 
         #label Font
         self.labelFont = defaults['labelFont']
@@ -160,7 +164,7 @@ class Sample:
 #========================sampleX wrappers for objects===========================
 
     def addCPW(self, leng, placeInfo, bridges=False, bridgeDistance= None,
-            bridgeStart=None, bridgeEnd=None, closeA=False, closeB=False, flip=False, rot=0):
+            bridgeStart=None, bridgeEnd=None, closeA=False, closeB=False, flip=False, rot=0, name = None):
         '''
         add a CPW line
 
@@ -185,13 +189,17 @@ class Sample:
         its left
         '''
 
+        #Default values
+        if bridgeDistance == None: bridgeDistance = self.bridgeDistance
+        if bridgeStart == None: bridgeStart = self.bridgeStart
+        if bridgeEnd == None: bridgeEnd = self.bridgeEnd
+
         #Keep track of the number of lines
         self.CPWs +=1
-        setattr(self, 'CPW'+str(self.CPWs), CPW(self,leng, placeInfo, bridges,
+        setattr(self, name if name else 'CPW'+str(self.CPWs), CPW(self,leng, placeInfo, bridges,
             bridgeDistance, bridgeStart, bridgeEnd, closeA, closeB, flip, rot))
 
-
-    def addArc(self, initAngle, degrees, placeInfo, flip=False, rbend=None,
+    def addArc(self, initAngle, degrees, placeInfo, flip=False, rbend=None, name = None,
             rot=0):
         '''
         Wrapper for Arc:
@@ -211,7 +219,7 @@ class Sample:
         print 'adding an Arc'
         self.arcs += 1
         #create launchers according to the list 'launcherpositions'
-        setattr(self, 'arc'+str(self.arcs), Arc(self, initAngle, degrees,
+        setattr(self, name if name else 'arc'+str(self.arcs), Arc(self, initAngle, degrees,
             placeInfo, flip, rbend, rot))
 
 #    def addResonator(self, freq, xspan, nwiggle, transmons = ['luru'], caps =
@@ -239,7 +247,7 @@ class Sample:
 
 
 
-    def addDoubleArc(self, dx, placeInfo, rbend=None, flip=False, rot=0):
+    def addDoubleArc(self, dx, placeInfo, rbend=None, flip=False, rot=0, name = None):
         '''
         Wrapper for Arc:
 
@@ -261,14 +269,14 @@ class Sample:
 
         self.doubleArcs += 1
         #create launchers according to the list 'launcherpositions'
-        setattr(self, 'doubleArc'+str(self.doubleArcs), DoubleArc(self, dx,
+        setattr(self,  name if name else 'doubleArc'+str(self.doubleArcs), DoubleArc(self, dx,
             placeInfo, rbend, flip, rot))
 
 
 
     def addWiggle(self, nWiggle, leng, xspan, placeInfo, xOffset=0,
             yOffset=0, skew=0, rbend = None, bridges=True, closeA = False, closeB =
-            False, rot=0):
+            False, rot=0, name = None):
         '''
         Add a wiggly CPW
 
@@ -286,13 +294,13 @@ class Sample:
         if rbend == None: rbend = self.rbend
         
         self.wiggles += 1
-        setattr(self, 'wiggle'+str(self.wiggles), Wiggle(self,nWiggle, leng,
+        setattr(self,  name if name else 'wiggle'+str(self.wiggles), Wiggle(self,nWiggle, leng,
             xspan, placeInfo, xOffset, yOffset, skew, rbend, bridges, closeA,
             closeB, rot))
 
         
     def addSLine(self, yspan, placeInfo, rbend = None, reflect=False,
-            flip=False, enter=True, exit = True, bridges = False,  rot=0):
+            flip=False, enter=True, exit = True, bridges = False,  rot=0, name = None):
         '''
         Add an Sline (90 degree arc + CPW + 90 arc
         '''
@@ -301,12 +309,12 @@ class Sample:
         if rbend == None: rbend = self.rbend
 
         self.slines += 1
-        setattr(self, 'sLine'+str(self.slines), SLine(self, yspan, placeInfo,
+        setattr(self,  name if name else 'sLine'+str(self.slines), SLine(self, yspan, placeInfo,
             rbend, reflect, flip, enter, exit, bridges, rot))
 
 
     def addJLine(self, totLen, xspan, yspan, nWiggles, placeInfo, offsets,
-            rbend=None, bridges=True, rot=0):
+            rbend=None, bridges=True, rot=0, name = None):
         '''
         Add a JLine to the sample, primarily as testresonators coupled to a
         feedLine
@@ -326,11 +334,11 @@ class Sample:
 
         self.jlines += 1
 
-        setattr(self, 'JLine'+str(self.jlines), JLine(self, totLen, xspan,
+        setattr(self,  name if name else 'JLine'+str(self.jlines), JLine(self, totLen, xspan,
             yspan, nWiggles, placeInfo, offsets, rbend, bridges, rot))
 
 
-    def addGapCoupler(self, gapSize, placeInfo, extralen=0,flip=False, rot=0):
+    def addGapCoupler(self, gapSize, placeInfo, extralen=0,flip=False, rot=0, name = None):
         '''
         Add a gap Coupler. 
 
@@ -344,12 +352,12 @@ class Sample:
         '''
 
         self.gapCouplers += 1
-        setattr(self, 'gapCoupler'+str(self.gapCouplers),
+        setattr(self,  name if name else 'gapCoupler'+str(self.gapCouplers),
                 GapCoupler(self,gapSize, placeInfo, extralen, flip, rot))
 
 
     def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2],
-            flip=False, rot=0):
+            flip=False, rot=0, name = None):
         '''
         Add a TransmonBox. 
 
@@ -364,10 +372,10 @@ class Sample:
         '''
 
         self.transmonBoxes += 1
-        setattr(self, 'transmonBox'+str(self.transmonBoxes),
+        setattr(self,  name if name else 'transmonBox'+str(self.transmonBoxes),
                 TransmonBox(self, shape, placeInfo, offset, almarks, flip, rot))
 
-    def addCornerTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0),rot=0):
+    def addCornerTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0),rot=0, name = None):
         '''
         Add a TransmonBox. 
 
@@ -391,12 +399,12 @@ class Sample:
         '''
 
         self.cornerTransmonBoxes += 1
-        setattr(self, 'cornerTransmonBox'+str(self.cornerTransmonBoxes),
+        setattr(self,  name if name else 'cornerTransmonBox'+str(self.cornerTransmonBoxes),
                 CornerTransmonBox(self, shape, placeInfo, offset, rot))
 
 
     def addFingerCap(self, nFingers, placeInfo, fingerLen = None, 
-            fingerThick=None, gapHeight = None, gapWidth = None, flip=False, rot=0):
+            fingerThick=None, gapHeight = None, gapWidth = None, flip=False, rot=0, name = None):
         '''
         Add a finger Capacitor. 
 
@@ -419,7 +427,7 @@ class Sample:
 
         #Build the finger coupler
         self.fingerCaps += 1
-        setattr(self, 'fingerCap'+str(self.fingerCaps),
+        setattr(self,  name if name else 'fingerCap'+str(self.fingerCaps),
                 FingerCap(self,nFingers, placeInfo, fingerLen,
                 fingerThick, gapHeight, gapWidth, flip=flip, rot=rot))
 
@@ -427,7 +435,7 @@ class Sample:
 
     def addFingerCoupler(self, nFingers, placeInfo, fingerLen = None, 
             fingerThick=None, gapHeight = None, gapWidth = None,
-            taperLen = None, centerLen = None, flip=False, rot=0):
+            taperLen = None, centerLen = None, flip=False, rot=0, name = None):
         '''
         Add a finger Coupler. 
 
@@ -452,13 +460,13 @@ class Sample:
 
         #Build the finger coupler
         self.fingerCouplers += 1
-        setattr(self, 'fingerCoupler'+str(self.fingerCouplers),
+        setattr(self,  name if name else 'fingerCoupler'+str(self.fingerCouplers),
                 FingerCoupler(self,nFingers, placeInfo, fingerLen,
                 fingerThick, gapHeight, gapWidth, taperLen, centerLen, flip, rot=rot))
 
     def addAirbridge(self, placeInfo, bridgeLenX=None, bridgeLenY=None,
             footerLen = None, irGap=None, reflowGap = None, layers=None,
-            offset=(0,0),rot=0):
+            offset=(0,0),rot=0, name = None):
         '''
         All options (except placeInfo and rot) are taken from the config dict,
         Unless if specified otherwise by YOU!
@@ -474,11 +482,11 @@ class Sample:
 
         #Build the finger coupler
         self.airbridges += 1
-        setattr(self, 'airBridge'+str(self.airbridges),
+        setattr(self,  name if name else 'airBridge'+str(self.airbridges),
                 Airbridge(self, placeInfo, bridgeLenX, bridgeLenY, footerLen, 
                     irGap, reflowGap, layers, offset, rot=rot))
     
-    def addTaper(self, taperLen, placeInfo, startCenter, endCenter=None, abr = None, rot=0):
+    def addTaper(self, taperLen, placeInfo, startCenter, endCenter=None, abr = None, rot=0, name = None, flip = False, noground = False):
         '''
         Add a Taper
 
@@ -494,12 +502,12 @@ class Sample:
         if endCenter == None: endCenter = self.a1
 
         self.tapers += 1
-        setattr(self, 'taper'+str(self.tapers),
+        setattr(self,  name if name else 'taper'+str(self.tapers),
                 Taper(self, taperLen, startCenter, endCenter, placeInfo,
-                    abr=self.abr, rot=rot))
+                    abr=self.abr, rot=rot, flip=flip, noground = noground))
 
 
-    def addLauncher(self, placeInfo, center=None, gap=None):
+    def addLauncher(self, placeInfo, center=None, gap=None, name = None):
         '''
         add a single launcher
 
@@ -513,11 +521,11 @@ class Sample:
         if gap == None: gap = self.b1
 
         #create launchers according to the list 'launcherpositions'
-        setattr(self, 'launcher'+str(pos), Launcher(self, placeInfo, center, gap,
+        setattr(self,  name if name else 'launcher'+str(pos), Launcher(self, placeInfo, center, gap,
             rot=self.rot))
 
 
-    def addLaunchers(self, center=None, gap=None):
+    def addLaunchers(self, center=None, gap=None, name = None):
         '''
         Wrapper for Launcher:
         Create Launcher objects with names according to their position
@@ -534,7 +542,7 @@ class Sample:
 
 
         #create launchers according to the list 'launcherpositions'
-        [setattr(self, 'launcher'+str(pos), Launcher(self,pos, center, gap,
+        [setattr(self,  name if name else 'launcher'+str(pos), Launcher(self,pos, center, gap,
             rot=0)) for pos in self.launcherPositions]
         
 
@@ -644,7 +652,7 @@ class Sample:
 
 
     def addChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen=25*um,
-            extraline=0, chargeOffset=(0,0), endrot=0, startrot=0):
+            extraline=0, chargeOffset=(0,0), endrot=0, startrot=0, name = None):
         '''
         Add a chargeLine from the Launcher connector to a transmon box
 u
@@ -664,14 +672,14 @@ u
         '''
 
         self.chargeLines += 1
-        setattr(self, 'chargeLine'+str(self.chargeLines),
+        setattr(self,  name if name else 'chargeLine'+str(self.chargeLines),
                 ChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen,
                     extraline, chargeOffset, endrot, startrot))
 
 
 
     def addFluxLine(self, placeInfoLaunch, placeInfoTransmon, extraLine=0,
-         fluxGap=None, fluxLen=None, fluxOffset = (0,0), endrot=0, startrot=0):
+         fluxGap=None, fluxLen=None, fluxOffset = (0,0), endrot=0, startrot=0, name = None):
         '''
         Add a flux Line from the Launcher connector to a transmon box
 
@@ -696,7 +704,7 @@ u
 
         self.fluxLines += 1
 
-        setattr(self, 'fluxLine'+str(self.fluxLines),
+        setattr(self,  name if name else 'fluxLine'+str(self.fluxLines),
                 FluxLine(self, placeInfoLaunch, placeInfoTransmon, fluxGap,
                     extraLine, fluxLen, fluxOffset, endrot, startrot))
 
@@ -851,7 +859,7 @@ class Launcher:
 class Taper:
 
     def __init__(self, sampleX, taperLen, startCenter, endCenter, placeInfo,
-            abr, rot):
+            abr, rot, flip = False, noground = False):
 
         #Initialize attributes
         self.startCenter = startCenter
@@ -859,6 +867,8 @@ class Taper:
         self.taperLen = taperLen
         self.abr = abr
         self.rot = rot
+        self.flip = flip
+        self.noground = noground
 
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
@@ -893,7 +903,7 @@ class Taper:
         endOuter = self.abr*self.endCenter
 
         self.Cell = md.taper(self.coords, self.taperLen, startOuter, endOuter,
-                self.startCenter, self.endCenter, self.rot)
+                self.startCenter, self.endCenter, self.rot, self.flip, self.noground)
 
 
 
@@ -914,7 +924,7 @@ class CPW:
         self.closeA = closeA
         self.closeB = closeB
         self.flip = flip
-
+        
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
             #its a connection: get the coordinates!
@@ -953,7 +963,9 @@ class CPW:
         '''
         print 'drawing a CPW of ', self.leng/1e6, ' mm long' 
         self.Cell = md.CPW(self.coords,self.leng, closeA =
-                self.closeA, closeB = self.closeB, bridges=self.bridges, rot=self.rot)
+                self.closeA, closeB = self.closeB, bridges=self.bridges, 
+                bridgeDistance= self.bridgeDistance, 
+                bridgeStart=self.bridgeStart, bridgeEnd=self.bridgeEnd,rot=self.rot)
 #
 #    def addBridges(self):
 #

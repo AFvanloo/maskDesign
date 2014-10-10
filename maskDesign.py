@@ -94,7 +94,8 @@ def borderA(xlen,ylen,gap, alignPos):
 
 
 def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
-        bridges=False, rot=0):
+        bridges=False, bridgeDistance= defaults['ABdistance'], 
+        bridgeStart=defaults[ 'ABstart'], bridgeEnd=defaults[ 'ABend'], rot=0):
     '''
     A straight piece of co-planar waveguide
     center = the width of the center conductor
@@ -103,6 +104,12 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
 
     returns a cell
     '''
+    #defaults for AB here until I find out how to make it properly
+        
+    if bridgeDistance == None: bridgeDistance = defaults['ABdistance']
+    if bridgeStart == None: bridgeStart =defaults[ 'ABstart']
+    if bridgeEnd == None: bridgeEnd = defaults[ 'ABend']
+
     cpwCell = cad.core.Cell('CPW')
     startx, starty = coords
 
@@ -130,13 +137,8 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
 
     #add to the cell
     cpwCell.add([gapup,gapdown])
-      #airBridges
+     #airBridges
     if bridges:
-
-        #default values
-        bridgeDistance = defaults['ABdistance']
-        bridgeStart = defaults['ABstart']
-        bridgeEnd = defaults['ABend']
 
         #Cell for bridges
         bridgeCell = cad.core.Cell('AB')
@@ -190,19 +192,27 @@ def CPWArc(coords,initangle=270,degrees=90,
 
 
 def taper(coords,taperlen, startOuter, endOuter,
-        startInner,endInner,rot=0):
+        startInner,endInner,rot=0, flip = False, noground = False):
     '''
     General purpose taper drawer, for use in example couplers and launchers
     tapers from any start to any end within length taperlen
     '''
     taperCell = cad.core.Cell('TAPER')
+    flipit = -1 if flip else 1
 
     #draw it!
-    pointsup = [(-taperlen/2.,startOuter/2.),(taperlen/2.,endOuter/2.),
-            (taperlen/2.,endInner/2.),(-taperlen/2.,startInner/2.)]
+    if noground:
+        pointsup = [(flipit*taperlen/2.,startInner/2.),
+                (flipit*taperlen/2.,endInner/2.),(flipit*-taperlen/2.,startInner/2.)]
+        pointsdown = [(flipit*taperlen/2.,-startInner/2.),
+                (flipit*taperlen/2.,-endInner/2.),(flipit*-taperlen/2.,-startInner/2.)]
+    else:
+        pointsup = [(flipit*-taperlen/2.,startOuter/2.),(flipit*taperlen/2.,endOuter/2.),
+                (flipit*taperlen/2.,endInner/2.),(flipit*-taperlen/2.,startInner/2.)]
 
-    pointsdown = [(-taperlen/2.,-startOuter/2.),(taperlen/2.,-endOuter/2.),
-            (taperlen/2.,-endInner/2.),(-taperlen/2.,-startInner/2.)]
+        pointsdown = [(flipit*-taperlen/2.,-startOuter/2.),(flipit*taperlen/2.,-endOuter/2.),
+                (flipit*taperlen/2.,-endInner/2.),(flipit*-taperlen/2.,-startInner/2.)]
+
 
     #draw the boundaries
     bdup = cad.core.Boundary(pointsup)
@@ -913,16 +923,21 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
     if dx >= 2*rbend: 
         sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=True, rot=90)
         cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
-    elif dx <= -2*rbend:
+    elif dx <= -2*rbend and dx!=0:
         sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=True, rot=90)
         cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
-    elif 0 <= dx <= 2*rbend:
+    elif 0 < dx <= 2*rbend:
         sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
         cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
-    elif -2*rbend < dx <= 0:
+    elif -2*rbend < dx < 0:
         sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
         cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
-    routeCell.add([sCell, cCell])
+    elif dx == 0:
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+    if dx==0:
+        routeCell.add([cCell])
+    else:
+        routeCell.add([sCell, cCell])
 
     #Take care of the endrot
     if endrot == 'r':
@@ -1151,6 +1166,133 @@ def fourPoint(coords, ylen=419*um, xlen=438*um, gapSize=150*um, center = 10*um,
 
     return fpCellr
 
+def twoPoint(coords, ylen=419*um, xlen=438*um, gapSize=150*um, center = 10*um,
+        gap = 19*um, rot=0):
+    '''
+    two point measurement pads for measuring squid resistance
+	'''
+    
+    tpCell = cad.core.Cell('twoPoint')
+
+    #two launchers
+    launch1 = launcher((0, ylen/2+500*um), rot=-90)
+    launch2 = launcher((0, -ylen/2-500*um), rot=90)
+    tpCell.add([launch1, launch2])
+    
+    #4 rectangles to close the launchers
+    r1 = cad.shapes.Rectangle((-.95*150*um, ylen/2+500*um),
+            ( .95*150*um, ylen/2+550*um))
+    r2 = cad.shapes.Rectangle((-.95*150*um, -ylen/2-500*um),
+            ( .95*150*um, -ylen/2-550*um))
+    tpCell.add([r1, r2])
+
+    #CPWs
+    c1 = CPW((0, ylen/4+center/2),ylen/2-center/2, rot=90)
+    tpCell.add(c1)
+   
+    #gapCap
+    gap = gapCoupler((0,0),gapSize,leng=xlen-center,rot=90)
+    tpCell.add(gap)
+
+    #crossArray
+    crosses = crossArray((0,0))
+    tpCell.add(crosses)
+
+    #rotate and translate
+    tpCellr = cad.core.CellReference(tpCell, rotation=rot)
+    tpCellr.translate(coords)
+
+    return tpCellr
+
+def smallPad(coords, pad = 150.*um, ins = 50.*um, gapSize=150.*um, dis=400.*um, rot=0):
+    center = defaults['centerConductor']
+    gap = defaults['CPWGap']
+        
+    padCell = cad.core.Cell('PAD')	
+	
+    #draw boundary of small pad
+    points = [(-center/2,dis/2),(-center/2-pad/2-ins,dis/2), (-center/2-pad/2-ins,dis/2+2*ins+pad),
+	(+center/2+pad/2+ins,dis/2+2*ins+pad),(+center/2+pad/2+ins,dis/2),(center/2,dis/2),
+	(center/2,dis/2+ins),(pad/2,dis/2+ins), (pad/2,dis/2+ins+pad),(-pad/2,dis/2+ins+pad),
+	(-pad/2,dis/2+ins),(-center/2,dis/2+ins)]
+    pre = cad.core.Boundary(points)
+    padCell.add(pre)
+
+    #rotate and translate
+    padCellr = cad.core.CellReference(padCell, rotation=rot)
+    padCellr.translate(coords)
+	
+    return padCellr
+	
+def twoPointSmall(coords, pad = 150.*um, ins = 50.*um, dis=400.*um, gapSize=150.*um, rot=0):
+    '''
+    two point measurement square pads for measuring squid resistance
+    '''
+    center = defaults['centerConductor']
+    gap = defaults['CPWGap']
+        
+    tpCell = cad.core.Cell('twoPoint')
+    
+   # add pads
+    pre1 = smallPad((0,0),pad = pad, ins = ins, dis=dis, gapSize=gapSize, rot=rot)
+    pre2 = smallPad((0,+dis/2-(pad+ins)),pad = pad, ins = ins, dis=dis, gapSize=gapSize, rot=rot+180)
+    tpCell.add([pre1,pre2])
+
+    #add cpw of len dis
+    cpw = CPW((0,0),dis, rot=90)
+    tpCell.add(cpw)
+
+    #gapCap
+    gap = gapCoupler((0,0),gapSize,rot=90)
+    tpCell.add(gap)
+   
+    #rotate and translate
+    tpCellr = cad.core.CellReference(tpCell, rotation=rot)
+    tpCellr.translate(coords)
+	   
+    return tpCellr
+	
+def twoPointIslandsInSquare(coords, pad = 50.*um,  ins = 50.*um, almarks = [2,2], rot=0):
+    ''',
+    two point measurement square pads for measuring squid resistance, other version
+    '''
+    center = defaults['centerConductor']
+    gap = defaults['CPWGap']
+        
+    tpCell = cad.core.Cell('twoPoint')
+	
+   # add pads
+    pad1 = cad.shapes.Box((-pad/2-ins,0),(pad/2+ins,2*ins+pad),ins,layer=0)
+    pad2 = cad.shapes.Box((-pad/2-ins,-2*ins-pad),(pad/2+ins,0),ins,layer=0)
+    tpCell.add([pad1,pad2])
+
+    #Alignment marks (from transmonBoxAlign)
+    bCross = simpleCross(30*um,10*um)
+    sCross = simpleCross(12*um, 2*um)
+    bigDis = 300*um
+    smallDis = 250*um
+
+    for i in range(len(almarks)):
+        ym = (-1)**i
+        if almarks[i]==2:
+            tpCell.add(bCross,origin=(bigDis/2, ym*bigDis/2))
+            tpCell.add(bCross,origin=(-bigDis/2, ym*bigDis/2))
+            tpCell.add(sCross,origin=(smallDis/2, ym*smallDis/2))
+            tpCell.add(sCross,origin=(-smallDis/2, ym*smallDis/2))
+        elif almarks[i]==1:
+            tpCell.add(bCross,origin=(0,ym*bigDis/2))
+            tpCell.add(sCross,origin=(0,ym*smallDis/2))
+        elif almarks[i]==0:
+            continue
+            
+        elif almarks[i]>2 or almarks[i] < 0:
+            print 'Use almarks of [2,2] or less'
+
+    #rotate and translate
+    tpCellr = cad.core.CellReference(tpCell, rotation=rot)
+    tpCellr.translate(coords)
+	
+    return tpCellr
     
 def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um, cap1Len=100*um,
         cap2Len=200*um, nFinger1=14, nFinger2=7, rot=0):

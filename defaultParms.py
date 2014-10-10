@@ -31,7 +31,7 @@ def dPars():
     defDict = {'centerConductor'    : 10*um,
             'CPWGap'                : 19*um,
             'minimumRadius'         : 100*um,   #Minimum radius for bends (rbend)
-            'borderGap'             : 300*um,   #Gap between chips
+            'borderGap'             : 280*um,   #Gap between chips
             'alignDistance'         : 300*um,   #Distance between border and alignment markers
             'launcherWidth'         : 150*um,   #Launcher
             'launcherWidth'         : 150*um,   
