@@ -611,7 +611,7 @@ class Sample:
             # 8 launchers max, 4 top/bottom
             offX1, offX2 = offs
             positions.extend([[-offX1,borY,-90],[-offX2,borY,-90],[offX2,borY,-90],[offX1,borY,-90]])
-            positions.extend([[-offX1,-borY,90],[-offX2,-borY,90],[offX2,-borY,90],[offX1,-borY,90]])
+            positions.extend([[offX1,-borY,90],[offX2,-borY,90],[-offX2,-borY,90],[-offX1,-borY,90]])
 
 
         return positions    
@@ -1301,7 +1301,7 @@ class Wiggle:
             #Adjust for the size of the component
             if flip:
                 self.coords = (self.cp[0] - self.xspan/2.*np.cos(rad(rot)) + self.skew*np.sin(rad(rot)),
-                        self.cp[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
+                        self.cp[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
             else:
                 self.coords = (self.cp[0] + self.xspan/2.*np.cos(rad(rot)) - self.skew*np.sin(rad(rot)),
                         self.cp[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
@@ -1313,9 +1313,9 @@ class Wiggle:
         #Connector locations
         if flip:
             self.connectA = (self.coords[0] + self.xspan/2.*np.cos(rad(rot)), 
-                    self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
-            self.connectB = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
                     self.coords[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
+            self.connectB = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
+                    self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
         else:
             self.connectA = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
                     self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
@@ -2006,7 +2006,7 @@ class ThinTenna:
         '''
         make the cad Cell reference of the CPW
         '''
-        print 'drawing a thinTenna!!!, it has a ', self.thin/1e3, ' um centerConctor' 
+        print 'drawing a thinTenna!!!, it has a ', self.thin/1e3, ' um centerConductor' 
         self.Cell = md.thinTenna(self.coords,self.totLen, self.thinLen,
                 thin = self.thin, tapLen = self.tapLen, preLen = self.preLen, 
                 a1 = self.a1, b1=self.b1, rot=self.rot)
