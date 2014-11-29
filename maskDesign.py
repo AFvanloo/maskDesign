@@ -12,7 +12,7 @@ defaults = dp.dPars()
 #ChargeLines/FluxLines
 #Easy way to add airbridges
 
-print 'starting maskDesign'
+print 'loading maskDesign'
 
 #inner conductor
 # ic-to-ground distance
@@ -1392,10 +1392,178 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
             (dX/2+boxSize, -cap2Len-finger1Thick/2))
     LPCell.add([r5,r6])
     
-    
     #flatten, rotate and translate
     LPCellr = cad.core.CellReference(LPCell, rotation=rot)
     LPCellr.translate(coords)
 
     return LPCellr
+
+
+def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25,
+        xtraX = 200*um, xtraY=200*um, rot=0):
+
+    if nFingers%2 == 0:
+        print 'currently, nFingers should be odd, adding one'
+        nFingers += 1
+
+    Acell = cad.core.Cell('ANTENNA')
+
+    #inside radius, outside radius
+    iR = (fingerDis - fingerThick)/2
+    oR = (fingerDis + fingerThick)/2
+    ystraight = ySize/2 - oR
+
+    #create lower half
+    lowerx = np.arange(-nFingers+1, nFingers+1,2)
+    lowerx = fingerDis*lowerx
+    for x in lowerx[1:-1]:
+        cut = fingerInside([x,0],iR,oR,fingerDis, ystraight, sides = 'rl')
+        Acell.add(cut)
+    cutl = fingerInside([lowerx[0],0],iR,oR,fingerDis, ystraight, sides = 'r')
+    cutr = fingerInside([lowerx[-1],0],iR,oR,fingerDis, ystraight, sides = 'l')
+    Acell.add([cutl,cutr])
+#upper half
+    
+    upperx = np.arange(-nFingers+2, nFingers-1,2)
+    upperx = upperx*fingerDis #+ fingerDis
+    for x in upperx:
+        cut = fingerInside([x,0],iR,oR,fingerDis, ystraight, sides = 'lr',
+                rot=180)
+        Acell.add(cut)
+
+
+    #Upper Boundary
+    bound = [[-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, -ySize/2-xtraY],
+            [-(nFingers-.5)*fingerDis-fingerThick/2, -ySize/2-xtraY],
+            [-(nFingers-.5)*fingerDis-fingerThick/2, ystraight]]
+    bound += circBoundary([-(nFingers-1)*fingerDis,ystraight],oR, init_angle=180,
+            final_angle=90)
+    bound += [[-nFingers*fingerDis,ySize/2],[nFingers*fingerDis*2,ySize/2]]
+    bound += circBoundary([(nFingers-1)*fingerDis,ystraight],oR, init_angle=90,
+            final_angle=0)
+    bound += [[(nFingers-.5)*fingerDis+fingerThick/2, -ySize/2-xtraY],
+              [(nFingers-.5)*fingerDis+fingerThick/2+xtraX, -ySize/2-xtraY],
+              [(nFingers-.5)*fingerDis+fingerThick/2+xtraX, ySize/2+xtraY],
+              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, ySize/2+xtraY],
+              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, -ySize/2-xtraY]]
+    bdy = cad.core.Boundary(bound)
+    Acell.add(bdy)
+    
+    #lower boundary
+    r = cad.shapes.Rectangle((-(nFingers-.5)*fingerDis+fingerThick/2,-ySize/2),
+            ((nFingers-.5)*fingerDis-fingerThick/2,-ySize/2-xtraY))
+    Acell.add(r)
+
+
+
+    #flatten, rotate, translate
+    Acellr = cad.core.CellReference(Acell, rotation=rot)
+    Acellr.translate(coords)
+
+    return Acellr
+    
+def fingerInside(coords, iR, oR, fingerDis, ystraight, rot=0, sides='lr'):
+    '''
+    sides = ['l','r'] determines whether or not to draw a quarter circle on the
+    left of right side
+    '''
+
+    FICell  = cad.core.Cell('FI')
+
+    #lower left
+    points = []
+    if sides.count('l')>=1:
+        points+= circBoundary([-fingerDis,-ystraight], oR, init_angle=270,
+                final_angle=360)
+        points += [[-iR,-ystraight],[-iR, ystraight]]
+    else:
+        points += [[-iR, -ystraight-oR],[-iR, ystraight]]
+    points += circBoundary([0,ystraight], iR)
+    if sides.count('r')>=1:
+        points += [[iR,ystraight],[iR, -ystraight]]
+        points += circBoundary([fingerDis, -ystraight], oR, init_angle=180,
+                final_angle=270)
+    else:
+        points += [[iR, ystraight],[iR, -ystraight-oR]]
+    bd = cad.core.Boundary(points)
+    FICell.add(bd)
+
+    #flatten, rotate, translate
+    FICellr = cad.core.CellReference(FICell, rotation=rot)
+    FICellr.translate(coords)
+
+    return FICellr
+
+
+def thinTenna(coords, totLen, thinLen, thin=2*um, tapLen=100*um, preLen=0,
+        a1=None, b1=None, rot=0):
+    '''
+    makes a thin antenna
+    '''
+
+    if a1 == None:
+        a1 = defaults['centerConductor']
+    if b1 == None:
+        b1 = defaults['CPWGap']
+    abr = float(b1)/a1
+
+    ttCell = cad.core.Cell('TTENNA')
+
+    cp1 = CPW([-totLen/2+preLen/2,0],preLen, center=a1, gap=b1)
+    cp2 = CPW([totLen/2-preLen/2,0], preLen,center=a1, gap=b1)
+
+    tap1 = taper([-totLen/2+preLen+tapLen/2,0],tapLen,b1,abr*thin,a1,thin)
+    tap2 = taper([totLen/2-preLen-tapLen/2,0],tapLen,b1,abr*thin,a1,thin, flip=True)
+    
+    thinLen = totLen - 2*tapLen - 2*preLen
+    innerCPW = CPW([0,0], thinLen, center=thin, gap=abr*thin)
+    ttCell.add([cp1, cp2, tap1, tap2, innerCPW])
+
+    #flatten, rotate, translate
+    ttCellr = cad.core.CellReference(ttCell, rotation=rot)
+    ttCellr.translate(coords)
+
+    return ttCellr
+
+
+
+
+def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
+    '''
+    make a boundary of circular shape
+
+    Note that 199 is the maximum number of points permissable by GDS
+
+    Also note that when defining boundaries, the order matters: make sure you
+    draw your circle in the right direction
+    '''
+    dphi = float(final_angle-init_angle)/(nopoints-1)
+    angles = np.arange(init_angle, final_angle+dphi, dphi)
+    x,y = coords
+
+    points = []
+    for phi in angles:
+        points.append([x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))])
+
+    return points
+
+
+
+
+#==========================================================================
+#-------------------------------UTILITIES----------------------------------
+#==========================================================================
+        
+def rad(degrees):
+    '''
+    translates degrees to radians
+    '''
+    return degrees * 2 * np.pi / 360.
+
+
+def arcrad(radians):
+    '''
+    translates degrees to radians
+    '''
+    return radians * 360 / 2 / np.pi 
 

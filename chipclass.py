@@ -5,6 +5,7 @@ import numpy as np
 import defaultParms as dpars
 
 
+print 'loading chipClass'
 #Units are nm, so to use um, multiply by 1000
 um = 1e3
 mm = 1e6
@@ -129,6 +130,7 @@ class Sample:
         self.chargeLines = 0
         self.gateEnds = 0
         self.fluxLines = 0
+        self.thinTennas = 0
         self.newname = ''
         
 
@@ -622,7 +624,6 @@ class Sample:
 
 
 
-
     def addText(self, text, placeInfo=None, fontSize = 200*um, font = None, rot=0, layer=0):
         '''
         Add labels to the chip
@@ -707,6 +708,23 @@ u
         setattr(self,  name if name else 'fluxLine'+str(self.fluxLines),
                 FluxLine(self, placeInfoLaunch, placeInfoTransmon, fluxGap,
                     extraLine, fluxLen, fluxOffset, endrot, startrot))
+
+
+    def addThinTenna(self, placeInfo, totLen, thinLen, thin=2*um, tapLen=100*um,
+            preLen = 0, a1=None, b1=None, flip=False,rot=0):
+
+        '''
+        Add a thinline antenna
+        '''
+        
+        if a1 == None: a1 = self.a1
+        if b1 == None: b1 = self.b1
+
+        self.thinTennas += 1
+
+        setattr(self, 'thinTenna' + str(self.thinTennas), 
+                ThinTenna(self, placeInfo, totLen, thinLen, thin, tapLen,
+                    preLen, a1, b1, flip, rot))
 
 
 
@@ -948,21 +966,24 @@ class CPW:
                 self.coords[1] - self.leng/2.*np.sin(rad(rot)))
 
         #Make the Cell
-        self.makeCell()
+        self.makeCell(sampleX)
 
   #      if bridges:
   #          self.addBridges()
   #          sampleX.topCell.add(self.ABCellr)
 
+        print 'self.a1 is ', sampleX.a1
+
         #Add the CPW cell to the TopCell
         sampleX.topCell.add(self.Cell)
         
-    def makeCell(self):
+    def makeCell(self, sampleX):
         '''
         make the cad Cell reference of the CPW
         '''
         print 'drawing a CPW of ', self.leng/1e6, ' mm long' 
-        self.Cell = md.CPW(self.coords,self.leng, closeA =
+        self.Cell = md.CPW(self.coords,self.leng, center=sampleX.a1,
+                gap=sampleX.a1*sampleX.abr, closeA =
                 self.closeA, closeB = self.closeB, bridges=self.bridges, 
                 bridgeDistance= self.bridgeDistance, 
                 bridgeStart=self.bridgeStart, bridgeEnd=self.bridgeEnd,rot=self.rot)
@@ -1915,6 +1936,67 @@ class FourPoint:
 
         
         self.Cell = md.fourPoint(self.coords, rot) 
+
+#=========================================================================
+#---------------------OXFORDIAN STRUCTURES--------------------------------
+#=========================================================================
+
+
+class ThinTenna:
+
+    def __init__(self, sampleX, placeInfo, totLen, thinLen, thin, tapLen, preLen, a1, b1, flip, rot):
+
+        #attributes
+        self.thin = thin
+        self.preLen = preLen
+        self.totLen = totLen
+        self.thinLen = thinLen
+        self.tapLen = tapLen
+        self.a1 = a1
+        self.b1 = b1
+        self.flip = flip
+        self.rot = rot
+        
+        #Decide if we have coordinates or connection
+        if type(placeInfo) == str:
+            #its a connection: get the coordinates!
+            comp = getattr(sampleX, placeInfo.split('.')[0])
+            self.cp = getattr(comp, placeInfo.split('.')[1])
+            #Adjust for size of device
+            if self.flip:
+                self.coords = (self.cp[0] - self.totLen/2.*np.cos(rad(self.rot)),
+                        self.cp[1] - self.totLen/2.*np.sin(rad(self.rot)))
+            else:
+                self.coords = (self.cp[0] + self.totLen/2.*np.cos(rad(self.rot)),
+                        self.cp[1] + self.totLen/2.*np.sin(rad(self.rot)))
+        else:
+            #its coordinates
+            self.coords = placeInfo
+
+
+        #Connectors
+        self.connectA = (self.coords[0] - self.totLen/2.*np.cos(rad(rot)),
+                self.coords[1] + self.totLen/2.*np.sin(rad(rot)))
+        self.connectB = (self.coords[0] + self.totLen/2.*np.cos(rad(rot)), 
+                self.coords[1] - self.totLen/2.*np.sin(rad(rot)))
+
+        #Make the Cell
+        self.makeCell(sampleX)
+        sampleX.topCell.add(self.Cell)
+
+        
+    def makeCell(self, sampleX):
+        '''
+        make the cad Cell reference of the CPW
+        '''
+        print 'drawing a thinTenna!!!, it has a ', self.thin/1e3, ' um centerConctor' 
+        self.Cell = md.thinTenna(self.coords,self.totLen, self.thinLen,
+                thin = self.thin, tapLen = self.tapLen, preLen = self.preLen, 
+                a1 = self.a1, b1=self.b1, rot=self.rot)
+#
+
+
+
 
 #==========================================================================
 #-------------------------------UTILITIES----------------------------------
