@@ -332,10 +332,13 @@ class Mask:
         self.layout.add(self.topCell)
         self.layout.save(self.gdsFileName)
     
-    def storeAll(self):
+    def storeAll(self, fileName = ''):
+
+        if fileName == '':
+            fileName = self.pickleName
 
         #first test if file exists
-        if os.path.isfile(self.pickleName):
+        if os.path.isfile(fileName):
             x = raw_input('file exists, overwrite? (Yy/*) ')
             if x.upper() == 'Y':
                 newOpenFile = open(fileName, 'w')
@@ -345,11 +348,12 @@ class Mask:
             newOpenFile = open(fileName,'w')
 
         #use pickle to store the objects with their labels
-        labels = self.generateLabels()
+        self.generateLabels()
+        labels = self.labelList
         everythingList = []
 
         for i in range(len(labels)):
-            everythingList.append([labels[i], sampleList[i]])
+            everythingList.append([labels[i], self.sampleList[i]])
         everythingList.append(['Wafer', self])
 
         pickle.dump(everythingList, newOpenFile)
