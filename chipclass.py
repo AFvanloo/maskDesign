@@ -2,7 +2,7 @@
 import maskDesign as md
 import gdsCAD as cad
 import numpy as np
-import defaultParmsOx as dpars
+import defaultParms as dpars
 
 
 print 'loading chipClass'
@@ -19,7 +19,8 @@ defaults = dpars.dPars()
 class Sample:
 
     def __init__(self, border, launcherConfig='A', launcherPositions=[],
-            alignPos=range(4), label = '', labelPos = None, labelFontSize=None):
+            alignPos=[], label = '', labelPos = None, labelFontSize=None,
+            posRes = False):
         '''
         Calling constructor
 
@@ -42,6 +43,8 @@ class Sample:
         alignPositions refers to which alignment marks to draw, clockwise from
         the left upper corner
 
+        the 'posRes' option refers to positive resist chips. This will change the border sizes
+
         '''
         #TODO Default Values: hardcode or config file?
         self.fileName = 'test0123.gds'
@@ -54,6 +57,9 @@ class Sample:
         self.borders = borderTagList[border]
         self.borderTag = border
         self.borderGap = defaults['borderGap']
+        self.posRes = posRes
+        self.posResEdge = defaults['posResEdge']
+        self.offCenters = offCenters
 
         #launcher options
         self.launcherPositions = launcherPositions
@@ -157,7 +163,6 @@ class Sample:
         self.border1 = Border(self)
 
         #add label
-
         self.addText(self.label, fontSize = 500*um, placeInfo = self.labelPos)
 
         #add Launchers
@@ -557,12 +562,12 @@ class Sample:
         Ugly implementation, feel free to efficify
         '''
 
-        #force to string
+        #cast to string
         self.launcherConfig  = str(self.launcherConfig)
 
         #Check for valid input
-        if self.launcherConfig not in ['A', 'B', 'C', 'D']:
-            raise Exception, 'Launcherconfig must be either A, B or C (case sensitive)'
+        if self.launcherConfig.upper() not in ['A', 'B', 'C', 'D']:
+            raise Exception, 'Launcherconfig must be either A, B, C or D'
             #python 3 variant below
             #raise Exception('Launcherconfig must be either A, B or C (case sensitive)')
 
@@ -570,7 +575,7 @@ class Sample:
         borX, borY = self.borders[0]/2.,self.borders[1]/2.
         positions = []
         #Get the offcenter locations depending on launcherconfig
-        offs = offCenters[self.launcherConfig]
+        offs = self.offCenters[self.launcherConfig]
 
         if self.launcherConfig == 'A':
             # 8 launchers max, 1 left/right, 3 top/bottom
@@ -809,7 +814,6 @@ u
         self.layout.add(self.topCell)
         self.layout.save(self.fileName)
     
-
     def show(self):
         self.layout.add(self.topCell)
         self.layout.show()
@@ -827,8 +831,13 @@ class Border:
     def __init__(self,sampleX):
 
         #make the cell
-        self.Cell = md.borderA(sampleX.borders[0],sampleX.borders[1],
-                sampleX.borderGap, sampleX.alignPos)
+        if  sampleX.posRes:    # For positive photoresist samples
+            whiteGap = sampleX.borderGap - sampleX.posResEdge
+            xborder, yborder = sampleX.borders[0] + whiteGap, sampleX.borders[1] + whiteGap
+            self.Cell = md.borderA(xborder, yborder, sampleX.posResEdge, sampleX.alignPos, layer=1)
+        else:               # For negative photoresist samples
+            self.Cell = md.borderA(sampleX.borders[0],sampleX.borders[1],
+                    sampleX.borderGap, sampleX.alignPos)
         sampleX.topCell.add(self.Cell)
         
 
@@ -2011,6 +2020,10 @@ class ThinTenna:
                 thin = self.thin, tapLen = self.tapLen, preLen = self.preLen, 
                 a1 = self.a1, b1=self.b1, rot=self.rot)
 #
+
+#=========================================================================
+#------------------------------WAFER--------------------------------------
+#=========================================================================
 
 
 

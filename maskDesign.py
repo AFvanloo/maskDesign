@@ -1,7 +1,7 @@
 import gdsCAD as cad
 import matplotlib as mpl
 import numpy as np
-import defaultParmsOx as dp
+import defaultParms as dp
 
 defaults = dp.dPars()
 
@@ -19,6 +19,7 @@ print 'loading maskDesign'
 
 um = 1e3
 mm = 1e6
+inch = 25.4*mm
 a1, b1 = defaults['centerConductor'], defaults['CPWGap'] 
 
 cad.core.default_layer = 0
@@ -56,7 +57,7 @@ def border(xlen,ylen,gap, layer=0):
 
     return boxCell 
 
-def borderA(xlen,ylen,gap, alignPos):
+def borderA(xlen,ylen,gap, alignPos, layer=0):
     '''
     Makes a border for a chip, with a width of gap/2,
     Inlcudes Alignment Markers
@@ -65,16 +66,12 @@ def borderA(xlen,ylen,gap, alignPos):
     print 'generating borders'
 
     boxCell = cad.core.Cell('BORDER')
-    boundbox = border(xlen,ylen,gap)
+    boundbox = border(xlen,ylen,gap, layer=layer)
     boxCell.add(boundbox)
 
     #Alignment marks
     dis = defaults['alignDistance']   #distance from markers to edge
-    alignCell = cad.core.Cell('ALIGN')
 
-    #alignArray = cad.core.CellArray(Align, 2, 2, (xlen - 2*dis, ylen - 2*dis))
-    #alignCell.add(alignArray)
-    
     if 0 in alignPos:    
         Align0 = alignMarks((-xlen/2+dis, ylen/2-dis))
         boxCell.add(Align0)
@@ -86,11 +83,30 @@ def borderA(xlen,ylen,gap, alignPos):
         boxCell.add(Align2)
     if 3 in alignPos:
         Align3 = alignMarks((-xlen/2.+dis,-ylen/2.+dis))
-        alignCell.add(Align3)
-    
-    boxCell.add(alignCell)
- 
+        boxCell.add(Align3)
+
     return boxCell 
+
+def cornerL(coords, leng=500*um, thick=100*um, rot=0):
+    '''
+    L-shape to put into the corner of the chip for aligning
+    '''
+
+    print 'adding alignment L'
+
+    LCell = cad.core.Cell('L')
+    hl = leng/2
+
+    #draw the shape
+    lShape = [[-hl,hl],[hl,hl],[hl,-hl],[hl-thick,-hl],
+            [hl-thick, hl-thick],[-hl,hl-thick],[-hl,hl]]
+    lbound = cad.core.Boundary(lShape)
+    LCell.add(lbound)
+
+    LCellr = cad.core.CellReference(LCell,rotation=rot)
+    LCellr.translate(coords)
+
+    return LCellr
 
 
 def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
@@ -665,7 +681,7 @@ def airBridge(coords,footerLen=30*um,bridgeSizeX=40*um,bridgeSizeY=10*um,
     return bridgeCellr
 
 
-def chipText(coords, text, fontsize=100*um, font='romand', layer=25,rot=0):
+def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
     '''
     Generate text
     '''
@@ -685,6 +701,25 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=25,rot=0):
     textCellr.translate(coords)
 
     return textCellr
+
+def chipSides(x,y):
+    '''
+    Makes the left and right side of the chip, with a maskLabel space on the right bottom,
+    a chip label space on the left top, and L-shaped marks for alignment elsewhere
+    '''
+
+    sideCell = cad.core.Cell('SIDES')
+
+    white = defaults['labelSpace']
+    lthick = defaults['LAlignThick']
+
+    r1 = cad.shapes.Rectangle([-x/2, -y/2+white],[-x/2+white, y/2-white])
+    r2 = cad.shapes.Rectangle([x/2-white, -y/2+white],[x/2, y/2-white])
+    r3 = cad.shapes.Rectangle([-x/2+lthick, -y/2+lthick], [-x/2+white, -y/2+white])
+    r4 = cad.shapes.Rectangle([x/2-lthick, y/2-lthick], [x/2-white, y/2-white])
+    sideCell.add([r1,r2,r3,r4])
+
+    return sideCell
 
 
 #=================COMBINED FUNCTIONS=============================
@@ -1400,11 +1435,11 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
 
 
 def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25,
-        xtraX = 200*um, xtraY=200*um, rot=0):
+        xtraLeft = 200*um, xtraRight=200*um, xtraTop=200*um, xtraBottom=200*um, rot=0):
 
-    if nFingers%2 == 0:
-        print 'currently, nFingers should be odd, adding one'
-        nFingers += 1
+    #if nFingers%2 == 0:
+    #    print 'currently, nFingers should be odd, adding one'
+    #    nFingers += 1
 
     Acell = cad.core.Cell('ANTENNA')
 
@@ -1422,8 +1457,9 @@ def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25
     cutl = fingerInside([lowerx[0],0],iR,oR,fingerDis, ystraight, sides = 'r')
     cutr = fingerInside([lowerx[-1],0],iR,oR,fingerDis, ystraight, sides = 'l')
     Acell.add([cutl,cutr])
-#upper half
-    
+
+
+    #upper half
     upperx = np.arange(-nFingers+2, nFingers-1,2)
     upperx = upperx*fingerDis #+ fingerDis
     for x in upperx:
@@ -1433,28 +1469,27 @@ def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25
 
 
     #Upper Boundary
-    bound = [[-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, -ySize/2-xtraY],
-            [-(nFingers-.5)*fingerDis-fingerThick/2, -ySize/2-xtraY],
+    bound = [[-(nFingers-.5)*fingerDis-fingerThick/2-xtraLeft, -ySize/2-xtraBottom],
+            [-(nFingers-.5)*fingerDis-fingerThick/2, -ySize/2-xtraBottom],
             [-(nFingers-.5)*fingerDis-fingerThick/2, ystraight]]
     bound += circBoundary([-(nFingers-1)*fingerDis,ystraight],oR, init_angle=180,
             final_angle=90)
-    bound += [[-nFingers*fingerDis,ySize/2],[nFingers*fingerDis*2,ySize/2]]
+    bound += [[-(nFingers-.5)*fingerDis-fingerThick/2+oR,ySize/2],
+            [(nFingers-.5)*fingerDis+fingerThick/2-oR,ySize/2]]
     bound += circBoundary([(nFingers-1)*fingerDis,ystraight],oR, init_angle=90,
             final_angle=0)
-    bound += [[(nFingers-.5)*fingerDis+fingerThick/2, -ySize/2-xtraY],
-              [(nFingers-.5)*fingerDis+fingerThick/2+xtraX, -ySize/2-xtraY],
-              [(nFingers-.5)*fingerDis+fingerThick/2+xtraX, ySize/2+xtraY],
-              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, ySize/2+xtraY],
-              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, -ySize/2-xtraY]]
+    bound += [[(nFingers-.5)*fingerDis+fingerThick/2, -ySize/2-xtraBottom],
+              [(nFingers-.5)*fingerDis+fingerThick/2+xtraRight, -ySize/2-xtraBottom],
+              [(nFingers-.5)*fingerDis+fingerThick/2+xtraRight, ySize/2+xtraTop],
+              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraLeft, ySize/2+xtraTop],
+              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraLeft, -ySize/2-xtraBottom]]
     bdy = cad.core.Boundary(bound)
     Acell.add(bdy)
     
     #lower boundary
     r = cad.shapes.Rectangle((-(nFingers-.5)*fingerDis+fingerThick/2,-ySize/2),
-            ((nFingers-.5)*fingerDis-fingerThick/2,-ySize/2-xtraY))
+            ((nFingers-.5)*fingerDis-fingerThick/2,-ySize/2-xtraBottom))
     Acell.add(r)
-
-
 
     #flatten, rotate, translate
     Acellr = cad.core.CellReference(Acell, rotation=rot)
@@ -1471,6 +1506,7 @@ def fingerInside(coords, iR, oR, fingerDis, ystraight, rot=0, sides='lr'):
     FICell  = cad.core.Cell('FI')
 
     #lower left
+    thick = oR-iR
     points = []
     if sides.count('l')>=1:
         points+= circBoundary([-fingerDis,-ystraight], oR, init_angle=270,
@@ -1478,7 +1514,7 @@ def fingerInside(coords, iR, oR, fingerDis, ystraight, rot=0, sides='lr'):
         points += [[-iR,-ystraight],[-iR, ystraight]]
     else:
         points += [[-iR, -ystraight-oR],[-iR, ystraight]]
-    points += circBoundary([0,ystraight], iR)
+    points += circBoundary([0,ystraight], iR, final_angle=180)
     if sides.count('r')>=1:
         points += [[iR,ystraight],[iR, -ystraight]]
         points += circBoundary([fingerDis, -ystraight], oR, init_angle=180,
@@ -1527,13 +1563,222 @@ def thinTenna(coords, totLen, thinLen, thin=2*um, tapLen=100*um, preLen=0,
 
 
 
+#
+#def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
+#    '''
+#    make a boundary of circular shape
+#
+#    Note that 199 is the maximum number of points permissable by GDS
+#
+#    Also note that when defining boundaries, the order matters: make sure you
+#    draw your circle in the right direction
+#    '''
+#    dphi = float(final_angle-init_angle)/(nopoints-1)
+#    angles = np.arange(init_angle, final_angle+dphi, dphi)
+#    x,y = coords
+#
+#    points = []
+#    for phi in angles:
+#        points.append([x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))])
+#
+#    return points
+#
 
-def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
+def wireNoGround(coords, thick, ySize, xtraLeft=.5*mm, xtraRight=.5*mm, launcherX=300*um, launcherY=500*um, rot=0):
+    '''
+    Make a wire while getting rid of the surrounding groundplane
+    '''
+
+    wgCell = cad.core.Cell('NOGROUNDWIRE')
+    
+    left = [[-launcherX/2, -ySize/2],[-xtraLeft, -ySize/2],[-xtraLeft, ySize/2],
+            [-launcherX/2, ySize/2], [-thick/2, ySize/2-launcherY],
+            [-thick/2, -ySize/2 + launcherY], [-launcherX/2, -ySize/2]]
+    leftb = cad.core.Boundary(left)
+    
+    right = [[launcherX/2, -ySize/2],[xtraRight, -ySize/2],[xtraRight, ySize/2],
+            [launcherX/2, ySize/2], [thick/2, ySize/2-launcherY],
+            [thick/2, -ySize/2 + launcherY], [launcherX/2, -ySize/2]]
+    rightb = cad.core.Boundary(right)
+
+    wgCell.add([leftb, rightb])
+
+    #flatten, rotate, translate
+    wgCellr = cad.core.CellReference(wgCell, rotation=rot)
+    wgCellr.translate(coords)
+
+    return wgCellr
+
+#===========================================================================
+#---------------------------PositivePhotoresist-----------------------------
+#===========================================================================
+
+def DCwire(coords, ySize, thick, launcherY=500*um, launcherX=300*um, rot=0):
+    '''
+    Make a wire at coords of width 'thick' with triangular contact of dimensions
+    launcherY, launcherX
+
+    By default, this structure is vertical
+    '''
+
+    DCCell = cad.core.Cell('DCWIRE')
+
+    wireLen = ySize- 2*launcherY
+
+    #create the boundary
+    points = [[-launcherX/2, -ySize/2],[-thick/2, -wireLen/2],
+            [-thick/2,wireLen/2],[-launcherX/2,ySize/2],
+            [launcherX/2, ySize/2], [thick/2, wireLen/2],
+            [thick/2, -wireLen/2], [launcherX/2, -ySize/2],
+            [-launcherX/2, -ySize/2]]
+    bdy = cad.core.Boundary(points)
+
+    #Add to cell
+    DCCell.add(bdy)
+
+    #translate, rotate
+    DCCellr = cad.core.CellReference(DCCell, rotation=rot)
+    DCCellr.translate(coords)
+
+    return DCCellr
+
+
+def antennaP(coords, nFinger, fingerThick, fingerDis, ySize, xtraY=1*mm, launch=True, rot=0):
+    '''
+    Make a positive resist antenna
+    '''
+    
+    #create the cell
+    APCell = cad.core.Cell('ANTENNAP')
+
+    #calculate various positions
+    posX = np.arange(-(nFinger-1.)/2, (nFinger-1.)/2+1)*2*fingerDis
+
+    #create the main antenna
+    #left and right finger
+    fl = posFinger((posX[0],0), fingerThick, fingerDis, ySize, leftBend=False)
+    fr = posFinger((posX[-1],0), fingerThick, fingerDis, ySize, rightBend=False)
+    APCell.add([fl, fr])
+    #rest fingers
+    for pos in posX[1:-1]:
+        f = posFinger((pos,0), fingerThick, fingerDis, ySize)
+        APCell.add(f)
+    
+    #create the extra legs
+    yLim = coords[1]-ySize/2-xtraY
+    xLims = [posX[0]-fingerDis/2, posX[-1]+fingerDis/2]
+    r1 = cad.shapes.Rectangle([xLims[0]-fingerThick/2,yLim+xtraY],[xLims[0]+fingerThick/2,yLim])
+    r2 = cad.shapes.Rectangle([xLims[1]-fingerThick/2,yLim+xtraY],[xLims[1]+fingerThick/2,yLim])
+    APCell.add([r1,r2])
+
+    #add Launchers
+    if launch:
+        #Define launch shape (its a triangle):
+        lX = 300*um
+        lY = 500*um
+        t1 = [[xLims[0]-lX/2,yLim],[xLims[0], yLim+lY],[xLims[0]+lX/2, yLim],[xLims[0]-lX/2,yLim]]
+        t2 = [[xLims[1]-lX/2,yLim],[xLims[1], yLim+lY],[xLims[1]+lX/2, yLim],[xLims[1]-lX/2,yLim]]
+        tr1 = cad.core.Boundary(t1)
+        tr2 = cad.core.Boundary(t2)
+        APCell.add([tr1,tr2])
+
+    #translate, rotate
+    APCellr = cad.core.CellReference(APCell)
+    APCellr.translate(coords)
+
+    return APCellr
+
+  
+
+def posFinger(coords, fingerThick, fingerDis, ySize, leftBend=True, rightBend=True):
+
+    fCell = cad.core.Cell('FINGER')
+    
+    #parametrize
+    ir = fingerDis/2 - fingerThick/2
+    our = fingerDis/2 + fingerThick/2
+    straightY = ySize - 2*our
+    
+    #x=0 is at the top, in the center of the disc
+    upperdisc = cad.shapes.Disk((0,straightY/2),our, inner_radius=ir, final_angle=180)
+    fCell.add(upperdisc)
+
+    #left part
+    if leftBend:
+        r = cad.shapes.Rectangle((-our,-straightY/2),(-ir, straightY/2))
+        d = cad.shapes.Disk((-fingerDis, -straightY/2),our, inner_radius=ir, initial_angle=270, final_angle=360)
+        fCell.add([r,d])
+    else:
+        r = cad.shapes.Rectangle((-our,-ySize/2),(-ir, straightY/2))
+        fCell.add(r)
+
+    #right part
+    if rightBend:
+        r = cad.shapes.Rectangle((our,-straightY/2),(ir, straightY/2))
+        d = cad.shapes.Disk((fingerDis, -straightY/2),our, inner_radius=ir, initial_angle=180, final_angle=270)
+        fCell.add([r,d])
+    else:
+        r = cad.shapes.Rectangle((our,-ySize/2),(ir, straightY/2))
+        fCell.add(r)
+
+    #translate, rotate
+    fCellr = cad.core.CellReference(fCell)
+    fCellr.translate(coords)
+
+    return fCellr
+
+#=========================================================================
+#-----------------------------WAFER---------------------------------------
+#=========================================================================
+
+
+def wafer(size=1.5*inch, edge=0*mm, dphi=35, extraLayer=False):
+    '''
+    draw a wafer
+    '''
+
+    WC = cad.core.Cell('WAFER')
+
+    size = size-edge
+
+    r1 = border(5*inch, 5*inch, 1*mm)
+
+    c1 = cad.shapes.Disk((0,0), size, inner_radius=size-.4*mm)
+    c2 = cad.shapes.Disk((0,0), size, initial_angle=270-dphi, final_angle = 270+dphi)
+    WC.add([r1, c1, c2])
+
+    if extraLayer:
+        c3 = cad.shapes.Disk((0,0), size+.2*mm, layer=2)
+        WC.add(c3)
+
+    #bottom stripes
+    #c3b = circleSlice((0,0), size, phi=-70, dphi=5)
+    #c4b = circleSlice((0,0), size, phi=-65, dphi=5)
+    #c5b = circleSlice((0,0), size, phi=-60, dphi=5)
+    #c3 = cad.core.Boundary(c3b)
+    #c4 = cad.core.Boundary(c4b)
+    #c5 = cad.core.Boundary(c5b)
+    #WC.add([r1, c1,c2, c3, c4,c5])
+    
+    return WC
+
+def flatCircle(coords, radius, dphi):
+    ''' 
+    make a flattened circle using the circBoundary function that starts on the right, 
+    #goes clocwise and 
+    #dphi is in degrees
+    '''
+
+    b1 = circBoundary(coords, radius, init_angle=0, final_angle=90-dphi)
+    b2 = circBoundary(coords, radius, init_angle=90+dphi, final_angle=270-dphi)
+    b3 = circBoundary(coords, radius, init_angle=-90+dphi, final_angle=0)
+    
+    return b1+b2+b3
+
+def circBoundary(coords, radius, init_angle=0, final_angle=360, nopoints=199):
     '''
     make a boundary of circular shape
-
     Note that 199 is the maximum number of points permissable by GDS
-
     Also note that when defining boundaries, the order matters: make sure you
     draw your circle in the right direction
     '''
@@ -1541,13 +1786,18 @@ def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
     angles = np.arange(init_angle, final_angle+dphi, dphi)
     x,y = coords
 
-    points = []
-    for phi in angles:
-        points.append([x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))])
+    return [[x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))] for phi in angles]
 
-    return points
+def circleSlice(coords, radius, phi, dphi):
+    '''
+    Draws a horizontal slice of a circle
+    phi is the angle for positive x around which the slice is drawn. dphi depends the angular width of the slice
+    '''
+    phi2 = 180 - phi
+    b1 = circBoundary(coords, radius, init_angle=phi-dphi/2, final_angle = phi+dphi/2)
+    b2 = circBoundary(coords, radius, init_angle=phi2-dphi/2, final_angle = phi2+dphi/2)
 
-
+    return b1+b2
 
 
 #==========================================================================
