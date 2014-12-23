@@ -24,8 +24,8 @@ def dLists():
     #offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
     #    'C' : (925*um, 2775*um, 875*um, 2625*um)} '''
 
-    offCenters = {'A' : 3990*um, 'B' : (2470*um, 1170*um, 2300*um), 
-            'C' : (925*um, 2775*um, 875*um, 2625*um), 'D' : (3990*um, 1330*um)} 
+    offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
+            'C' : (925*um, 2775*um, 875*um, 2625*um), 'D' : (3990*um, 1330*um), 'E' : 3990*um} 
 
     # entry 3 and 4: third number is distance form left center to left upper launcher
     #last entry, last 4 numbers: vertical distances, then horizontal distances
