@@ -4,6 +4,7 @@ import numpy as np
 import defaultParms as dp
 
 defaults = dp.dPars()
+dLists = dp.dLists()
 
 #Separate file for sizes etc?
 
@@ -111,21 +112,30 @@ def cornerL(coords, leng=500*um, thick=100*um, rot=0):
 
 def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
         bridges=False, bridgeDistance= defaults['ABdistance'], 
-        bridgeStart=defaults[ 'ABstart'], bridgeEnd=defaults[ 'ABend'], rot=0):
+        bridgeStart=defaults[ 'ABstart'], bridgeEnd=defaults[ 'ABend'], vias=False, viaDiam = None,
+        interviaDistance=None, viaHorizDistance=None, rot=0):
     '''
     A straight piece of co-planar waveguide
     center = the width of the center conductor
     gap = the width of the cut in the ground plane in which the center conductor is placed
     rot = rotation in degrees
 
-    returns a cell
+    if via is set to true, the via distance will be slightly changed from the default value in order to 
+    ensure that vias are placed at close to the ends
+
+    returns a cell, and if vias=True, a list of via locations
     '''
     #defaults for AB here until I find out how to make it properly
         
     if bridgeDistance == None: bridgeDistance = defaults['ABdistance']
     if bridgeStart == None: bridgeStart =defaults[ 'ABstart']
     if bridgeEnd == None: bridgeEnd = defaults[ 'ABend']
-
+    
+    #via properties
+    if viaDiam == None: viaDiam = defaults['viaDiameter']
+    if interviaDistance == None: interviaDistance = defaults['interviaDistance']
+    if viaHorizDistance == None: viaHorizDistance = defaults['viaHorizDistance']
+    
     cpwCell = cad.core.Cell('CPW')
     startx, starty = coords
 
@@ -174,14 +184,43 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
         #add to main cell
         cpwCell.add(bridgeCell)
 
-    cpwCellr = cad.core.CellReference(cpwCell,rotation=rot)
-    cpwCellr.translate(coords)
+    if not vias:
+        cpwCellr = cad.core.CellReference(cpwCell,rotation=rot)
+        cpwCellr.translate(coords)
+        return cpwCellr
 
-    return cpwCellr
+    else:
+        #Cell for vias
+        pb1 = defaults['PCBgap']
+        viaCell = cad.core.Cell('VIA')
+        xloc = interviaDistance/2.
+        y = pb1/2+viaHorizDistance
+        viaLocs = []
+
+        #generate locations:
+        nums = np.round(leng/(2*xloc))
+        dis = (leng-2*xloc)/(nums-1)
+        xlocs = np.arange(-leng/2+xloc,leng/2-xloc+1 ,dis)
+        for x in xlocs:
+            viaLocs.append([x,y])
+            v1 = Via(viaLocs[-1], viaDiam)
+            viaLocs.append([x,-y])
+            v2 = Via(viaLocs[-1], viaDiam)
+            cpwCell.add([v1, v2])
+
+        #rotate and translate vias
+        viaLocsE = transRotVias(viaLocs, trans=coords, rot=rot)
+
+        #rotate and translate Cell
+        cpwCellr = cad.core.CellReference(cpwCell, rotation=rot)
+        cpwCellr.translate(coords)
+
+        return cpwCellr, viaLocsE
+
 
 
 def CPWArc(coords,initangle=270,degrees=90,
-        radius=100.*um,center=10.*um,gap=19.*um,rot=0.):
+        radius=100.*um,center=10.*um,gap=19.*um, vias=False, rot=0.):
     '''
     draw a CPW arc of pirad * pi radians.
     Radius, centerconductor widht and gap width are input arguments
@@ -201,10 +240,36 @@ def CPWArc(coords,initangle=270,degrees=90,
     arcCell.add([discinner,discouter])
 
     #rotate
-    arcCellr = cad.core.CellReference(arcCell,rotation=rot)
-    arcCellr.translate(coords)
+    if not vias:
+        arcCellr = cad.core.CellReference(arcCell,rotation=rot)
+        arcCellr.translate(coords)
+        return arcCellr
 
-    return arcCellr
+    else:
+        #cal len of arc
+        viaCell, posList  = arcVias(initangle, degrees, radius, center, gap)
+        arcCell.add(viaCell)
+
+        #rotate, translate
+        posListR = transRotVias(posList, trans=coords, rot=rot)
+        arcCellr = cad.core.CellReference(arcCell,rotation=rot)
+        arcCellr.translate(coords)
+        
+        return arcCellr, posListR
+
+
+def circBoundary(coords, radius, init_angle=0, final_angle=360, nopoints=199):
+    '''
+    make a boundary of circular shape
+    Note that 199 is the maximum number of points permissable by GDS
+    Also note that when defining boundaries, the order matters: make sure you
+    draw your circle in the right direction
+    '''
+    dphi = float(final_angle-init_angle)/(nopoints-1)
+    angles = np.arange(init_angle, final_angle+dphi, dphi)
+    x,y = coords
+
+    return [[x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))] for phi in angles]
 
 
 def taper(coords,taperlen, startOuter, endOuter,
@@ -724,44 +789,51 @@ def chipSides(x,y):
 
 #=================COMBINED FUNCTIONS=============================
 
-def doubleArc(coords, dy, rbend = 100*um, rot=0):
+def doubleArc(coords, dy, rbend = 100*um, center=a1, gap=b1, vias=False, rot=0):
 
     dACell = cad.core.Cell('DOUBLEARC')
 
-    #defaults
-    center = defaults['centerConductor']
-    gap = defaults['CPWGap']
-    
     #Calculate angle
     phirad = np.arccos(1-abs(dy)/(rbend*2))
-    print 'phirad is ', phirad
     phi = phirad*360/2/np.pi    #convert to degrees
 
     #start and end coords:
     startc = (-rbend*np.sin(phirad), rbend-abs(dy)/2)
     endc = (rbend*np.sin(phirad), -rbend+abs(dy)/2)
-    xspan = endc[1]*2
+    xspan = endc[0]*2
 
     #draw Arcs
     if dy>=0:
-        arc1Cell = CPWArc(startc, 270, phi, rbend, center, gap)
-        arc2Cell = CPWArc(endc, 90, phi, rbend, center, gap)
+        arc1Cell = CPWArc(startc, 270, phi, rbend, center, gap, vias=vias)
+        arc2Cell = CPWArc(endc, 90, phi, rbend, center, gap, vias=vias)
     else:
-        print 'less than zero'
-        arc1Cell = CPWArc((startc[0], -startc[1]), 90, -phi, rbend, center, gap)
-        arc2Cell = CPWArc((endc[0], -endc[1]), 270, -phi, rbend, center, gap)
+        arc1Cell = CPWArc((startc[0], -startc[1]), 90, -phi, rbend, center, gap, vias=vias)
+        arc2Cell = CPWArc((endc[0], -endc[1]), 270, -phi, rbend, center, gap, vias=vias)
+
+    if vias:
+        arc1Cell, pos1 = arc1Cell
+        print 'pos1 is ', pos1
+        arc2Cell, pos2 = arc2Cell
+        print 'pos2 is ', pos2
+        viaLocs = pos1
+        viaLocs.extend(pos2)
+        print 'viaLocs is ', viaLocs
+        viaLocs = transRotVias(viaLocs, trans=coords, rot=rot)
 
     dACell.add([arc1Cell, arc2Cell])
     
     #translate, rotate, reflect
     dACellr = cad.core.CellReference(dACell, rotation=rot)
     dACellr.translate(coords)
-
-    return dACellr, xspan
+    
+    if vias:
+        return dACellr, xspan, viaLocs
+    else:
+        return dACellr, xspan
 
 
 def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
-        bridges=False, rot=0):
+        bridges=False, center=a1, gap=b1, rot=0):
     '''
     Makes a CPW line with connected arcs of total yspan as indicated
     If exit and enter are True, a quarter circle bend is generated at the end
@@ -778,18 +850,18 @@ def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
     #Arcs
     if enter:
         if reflect:
-            enArc = CPWArc((-rbend,yspan/2.-rbend), initangle = 0., radius=rbend)
+            enArc = CPWArc((-rbend,yspan/2.-rbend), initangle = 0., radius=rbend, center=center, gap=gap)
         else:
-            enArc = CPWArc((-rbend,-yspan/2.+rbend),radius=rbend)
+            enArc = CPWArc((-rbend,-yspan/2.+rbend),radius=rbend, center=center, gap=gap)
         vstart += rbend/2.
         vlen -= rbend
         sLineCell.add(enArc)
 
     if exit:
         if reflect:
-            exArc = CPWArc((rbend,-yspan/2.+rbend),initangle =180., radius=rbend)
+            exArc = CPWArc((rbend,-yspan/2.+rbend),initangle =180., radius=rbend, center=center, gap=gap)
         else:
-            exArc = CPWArc((rbend,yspan/2.-rbend),initangle =90., radius=rbend)
+            exArc = CPWArc((rbend,yspan/2.-rbend),initangle =90., radius=rbend, center=center, gap=gap)
         vlen -= rbend
         vstart -= rbend/2.
         sLineCell.add(exArc)
@@ -797,9 +869,9 @@ def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
     
     #straight piece
     if reflect:
-        vPiece = CPW((0,vstart),vlen, bridges = bridges, rot=90.)
+        vPiece = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, rot=90.)
     else:
-        vPiece = CPW((0,vstart),vlen, bridges = bridges, rot=90.)
+        vPiece = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, rot=90.)
     #add to cell
     sLineCell.add(vPiece)
    
@@ -932,7 +1004,7 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     
     return wiggleCellr, yspan
 
-def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
+def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0, PCB=False):
     '''
     route a CPW from point (0,0) to (dx, dy)
     This function assumes dy to be positive. If you need negative dy, use rotate
@@ -945,9 +1017,14 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
     routeCell = cad.core.Cell('ROUTE')
 
     #default values
-    center = defaults['centerConductor']
-    gap = defaults['CPWGap']
-    rbend = defaults['minimumRadius']
+    if PCB:
+        rbend = min(dx, dy)/2
+        gap = defaults['PCBgap']
+        center = defaults['PCBcenter']
+    else:
+        gap = defaults['CPWGap']
+        center = defaults['centerConductor']
+        rbend = defaults['minimumRadius']
 
     #calculate yspan of bend if dx < 2*rbend
     if abs(dx) < 2*rbend:
@@ -956,19 +1033,19 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
 
     #check in which direction to bend
     if dx >= 2*rbend: 
-        sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=True, rot=90)
-        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
+        sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=bridges, rot=90)
+        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
     elif dx <= -2*rbend and dx!=0:
-        sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=True, rot=90)
-        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
+        sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=bridges, rot=90)
+        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
     elif 0 < dx <= 2*rbend:
         sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
     elif -2*rbend < dx < 0:
         sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
     elif dx == 0:
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
     if dx==0:
         routeCell.add([cCell])
     else:
@@ -976,15 +1053,15 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
 
     #Take care of the endrot
     if endrot == 'r':
-        arcCell = CPWArc((dx+rbend, dy), 90, 90)
+        arcCell = CPWArc((dx+rbend, dy), 90, 90, gap=gap, center=center)
         routeCell.add(arcCell)
     elif endrot == 'l':
-        arcCell = CPWArc((dx-rbend, dy), 0, 90)
+        arcCell = CPWArc((dx-rbend, dy), 0, 90, gap=gap, center=center)
         routeCell.add(arcCell)
 
     #rotate and translate
     routeCellr = cad.core.CellReference(routeCell, rotation = rot)
-    routeCellr.translate(coords)
+    routeCellr.translate(coords[:2])
 
     return routeCellr
 
@@ -1801,9 +1878,301 @@ def circleSlice(coords, radius, phi, dphi):
 
 
 #==========================================================================
+#------------------------------PCB-----------------------------------------
+#==========================================================================
+
+def PCBShape1(PCBSize, chipSize=(5*mm,10*mm)):
+    '''
+    circular design
+    '''
+    PC = cad.core.Cell('PCB')
+
+    x,y = chipSize
+
+    c1 = cad.shapes.Disk((0,0), PCBSize/2, inner_radius=PCBSize/2+1*mm)
+    c2 = cad.shapes.Disk((0,0), PCBSize/2, inner_radius=PCBSize/2+1*mm,layer=1)
+    #r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2))
+    r2 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2),layer=1)
+    
+    #c2 = cad.shapes.Disk((0,0), size, initial_angle=270-dphi, final_angle = 270+dphi)
+    PC.add([r1, c1, r2, c2])
+    return PC
+
+
+def PCBShape2(PCBSize, chipSize=(10*mm,5*mm)):
+    '''
+    square design
+    '''
+
+    PC = cad.core.Cell('PCB')
+
+    #boundary
+    xp, yp = PCBSize
+    linethick = 1*mm
+    b = border(xp,yp,linethick, layer=1)
+
+    PC.add(b)
+    return PC
+
+def chip(coords, chipSize, chipType='D', vias=True, rot=0):
+    '''
+    draw a chip
+    '''
+
+    CC = cad.core.Cell('CHIP')
+
+    x,y = chipSize
+    r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2), layer=1)
+    CC.add(r1) 
+
+    #vias:
+    if vias:
+        viaCell, viaLocs = chipVias(chipSize, coords, chipType, rot)
+        CC.add(viaCell)
+
+    #rotate, translate
+    CCr = cad.core.CellReference(CC, rotation=rot)
+    CCr.translate(coords)
+
+    if vias:
+        return CCr, viaLocs
+    else:
+        return CCr
+
+def MMPXEdge(coords, vias=True, layer=1, rot=0):
+    '''
+    MMPX Edge Connector
+    '''
+
+    PXCell = cad.core.Cell('MMPX')
+
+    x, y = defaults['MMPXEdge']
+    r = cad.shapes.Rectangle((-x/2,-y/2),(x/2,y/2), layer=layer)
+    PXCell.add(r)
+
+    if not vias:
+        #translate, rotate
+        PXCellr = cad.core.CellReference(PXCell, rotation=rot)
+        PXCellr.translate(coords)
+        return PXCellr
+
+    else:
+        #constants
+        viaLocs = []
+        ivD = defaults['interviaDistance']
+        vhD = defaults['viaHorizDistance']
+        #vertical part
+        x1 = -x/2 - vhD
+        ylocs = np.arange(-y/2-vhD,y/2,ivD)
+        for y in ylocs:
+            viaLocs.append([x1,y])
+            viaLocs.append([-x1,y])
+            v1, v2 = Via((x1,y)), Via((-x1,y))
+            PXCell.add([v1,v2])
+        #horizontal part
+        y1 = ylocs[0]
+        xlocs1 = np.arange(-x/2-vhD+ivD, -b1-vhD-ivD, ivD)
+        xlocs2 = np.arange(x/2+vhD-ivD, b1+vhD+ivD, -ivD)
+        xlocs = np.hstack((xlocs1,xlocs2))
+        for x in xlocs:
+            viaLocs.append([x,y1])
+            v1 = Via([x,y1])
+            PXCell.add(v1)
+
+
+        #translate, rotate
+        viaLocsR = transRotVias(viaLocs, trans=coords, rot=rot)
+        PXCellr = cad.core.CellReference(PXCell, rotation=rot)
+        PXCellr.translate(coords)
+        return PXCellr, viaLocsR
+
+def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0, endrot=0):
+    '''
+    route a CPW from point (0,0) to (dx, dy)
+    This function assumes dy to be positive. If you need negative dy, use rotate
+    '''
+
+    if dy<0:
+        raise ValueError, 'dy must be positive, use rotate to get negative vertical distances'
+
+    #init
+    routeCell = cad.core.Cell('ROUTE')
+    minrbend = defaults['PCBrbend']
+    gap = defaults['PCBgap']
+    center = defaults['PCBcenter']
+    allViaLocs = []
+
+    if endrot not in ['r', 'l']:
+        if abs(dy) > abs(dx):
+            if  abs(dx) >= minrbend:
+                cCell, viaLocs = CPW((0, (dy-abs(dx))/2), dy-abs(dx), center=center, gap=gap, vias=True, rot=90)
+                allViaLocs.append(viaLocs)
+                if coords[0] < 0:
+                    arcCell, viapos = CPWArc((dx, (dx+dy)), 180, 90, radius=dx, center=center, vias=True, gap=gap)
+                elif coords[0] > 0:
+                    arcCell, viapos = CPWArc((dx, (dy-dx)), 90, 90, radius=dx, center=center, vias=True, gap=gap)
+                allViaLocs.append(viapos)
+                routeCell.add([arcCell, cCell])
+            
+            #in case the horizontal distance is small
+            elif (0 < abs(dx) < abs(minrbend)):
+                #calculate span of double arc
+                phirad = np.arccos(1-(abs(dx)+minrbend)/(2*minrbend))
+                yspan = 2*minrbend*np.sin(phirad) # span of double arc
+
+                if coords[0] < 0:
+                    arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 0, 90, radius=minrbend, center=center, gap=gap, vias=True)
+                    sCell, yspanc, pos2 = doubleArc(((minrbend+dx)/2, dy-1*minrbend-yspan/2), -dx-minrbend, rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
+                elif coords[0] > 0:
+                    arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 90, 90, radius=minrbend, center=center, vias=True, gap=gap)
+                    sCell, yspanc, pos2 = doubleArc((-(minrbend-dx)/2, dy-minrbend-yspan/2), minrbend-dx, rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
+                allViaLocs.append(pos1)
+                allViaLocs.append(pos2)
+                cCell, viaLocs = CPW((0, (dy-minrbend-yspan)/2), dy-minrbend-yspan, center=center, gap=gap, vias=True, rot=90)
+                routeCell.add([arcCell, sCell, cCell])#, sCell, cCell])
+                allViaLocs.append(viaLocs)
+            else:
+                print 'Undefined situation in CPWroutePCB'
+    else:
+        #check in which direction to bend
+        print 'USING AN UNKNOWN ROUTING ALGO!!!!'
+#        if dx >= 2*rbend: 
+#            sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=bridges, rot=90)
+#            cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
+#        elif dx <= -2*rbend and dx!=0:
+#            sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=bridges, rot=90)
+#            cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
+#        elif 0 < dx <= 2*rbend:
+#            sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
+#            cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
+#        elif -2*rbend < dx < 0:
+#            sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
+#            cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
+#        elif dx == 0:
+#            cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
+#        if dx==0:
+#            routeCell.add([cCell])
+#        else:
+#            routeCell.add([sCell, cCell])
+#
+        #Take care of the endrot
+        if endrot == 'r':
+            arcCell, pos = CPWArc((dx+rbend, dy), 90, 90, gap=gap, center=center, vias=True)
+            allViaLocs.append(pos)
+            routeCell.add(arcCell)
+        elif endrot == 'l':
+            arcCell, pos = CPWArc((dx-rbend, dy), 0, 90, gap=gap, center=center)
+            routeCell.add(arcCell)
+            allViaLocs.append(pos)
+    #rotate and translate
+    routeCellr = cad.core.CellReference(routeCell, rotation = rot)
+    routeCellr.translate(coords[:2])
+
+    return routeCellr, allViaLocs
+
+def Via(coords, viaDiam=None, layer=2):
+
+    if viaDiam==None:
+        viaDiam = defaults['viaDiameter']
+
+    VC = cad.core.Cell('VIA')
+    h = cad.shapes.Disk((0,0), viaDiam/2, layer=layer)
+    VC.add(h)
+    
+    VCr = cad.core.CellReference(VC, origin=coords)
+
+    return VCr
+
+def arcVias(initAngle, degrees, radius, center, gap):
+    '''
+    Draws vias along an arc, returns the Cell and the locations
+    '''
+
+    VA = cad.core.Cell('ARCVIA')
+    vhD = defaults['PCBgap']/2+defaults['viaHorizDistance']
+    ivD = defaults['interviaDistance']
+    posList = []
+
+    for i in range(1,3):
+        r = radius+vhD*np.power(-1,i)
+        arcLen = abs(2*np.pi*r*degrees/360)
+        #TODO Just changed arcLen to abs arcLen
+        if arcLen <= 2*ivD:
+            locs = (r*np.cos(rad(initAngle+degrees/2)), r*np.sin(rad(initAngle+degrees/2)))
+            posList.append(locs)
+            VA.add(Via(locs))
+        else:
+            nums = np.round(arcLen/ivD)
+            phi1 = degrees * (ivD/2/arcLen)
+            dphi = abs((degrees/nums) * (arcLen-ivD)/(arcLen))
+            phiList = np.arange(initAngle+phi1, initAngle+degrees, np.sign(degrees)*dphi)
+
+            for p in phiList:
+                nx, ny = r*np.cos(rad(p)), r*np.sin(rad(p))
+                posList.append([nx, ny])
+                VA.add(Via([nx,ny]))
+    
+    #return
+    return VA, posList
+
+
+def chipVias(chipSize, coords, chipType, rot):
+
+    #make cell, define constants
+    VA = cad.core.Cell('ARCVIA')
+    vhD = defaults['PCBgap']/2+defaults['viaHorizDistance']
+    ivD = defaults['interviaDistance']
+    posList = []
+
+    x, y = chipSize
+    xv=  x+vhD
+    yv = y+vhD
+    
+    if chipType != 'D':
+        raise Exception, 'Automatic via allocation to chip is only implemented for chipType D'
+
+    #sides
+    ynums = np.round(y/ivD)
+    ydis = y/(ynums-1)
+    ys = np.arange(-y/2, y/2+ydis, ydis)
+    for yn in ys:
+        posList.extend([[-xv/2, yn],[xv/2, yn]])
+        VA.add(Via([-xv/2, yn]))
+        VA.add(Via([xv/2, yn]))
+    
+    #place 1 via between each 2 connectors:
+    a, offCenters = dLists
+    oC = offCenters['D'] 
+    print 'oC is ', oC
+    np.mean(oC)
+    pos = [-np.mean(oC), 0 , np.mean(oC)] #0 is mean between oC[0] and -oC[0]
+    print 'pos is ', pos
+    for p in pos:
+        posList.extend([[p, -yv/2],[p, yv/2]])
+        VA.add(Via([p,-yv/2]))
+        VA.add(Via([p,yv/2]))
+     
+    viaLocs = transRotVias(posList, trans=coords, rot=rot)
+
+    return VA, viaLocs
+
+#==========================================================================
 #-------------------------------UTILITIES----------------------------------
 #==========================================================================
         
+def transRotVias(viaLocs, trans=(0,0), rot=0):
+    '''
+    rotate and translate via locations
+    Input: via Locations, translation coords, rotation in degrees
+    '''
+    viaLocsR = []
+    for viacoord in viaLocs:
+        x,y = viacoord
+        viaLocsR.append([x*np.cos(rot)-y*np.sin(rot)+trans[0],
+            y*np.cos(rot)+x*np.sin(rot)+trans[1]])
+    return viaLocsR
+
+
 def rad(degrees):
     '''
     translates degrees to radians
