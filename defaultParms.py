@@ -78,7 +78,14 @@ def dPars():
             'lambdahalf65'          : 2*4670*um,
             'waferSize'             : 2*25.4*mm,
             'labelFontSize'         : 360*um,   # take ~.9*labelSpace
-            'labelSpace'            : 400*um}   #space for labels on mostly black chips
+            'labelSpace'            : 400*um,   #space for labels on mostly black chips
+            'MMPXEdge'              : (3.5*mm, 5.2*mm),     # side MMPX dimensions
+            'PCBcenter'             : .2*mm,                #parameters for PCB CPWs
+            'PCBgap'                : .4*mm,
+            'PCBrbend'              : 1*mm,     #minimum bend radius
+            'viaDiameter'           : .2*mm,                 
+            'interviaDistance'      : .7*mm,
+            'viaHorizDistance'      : .4*mm}
 
     return defDict
 
