@@ -2,6 +2,7 @@ import gdsCAD as cad
 import numpy as np
 import defaultParms as dpars
 import maskDesign as md
+import sys
 
 
 print 'loading PCBClass'
@@ -17,7 +18,7 @@ defaults = dpars.dPars()
 
 class PCB:
 
-    def __init__(self, PCBSize=30*mm, shape=2, mmpxs=[4,0,0,0],chipSize = (10*mm,5*mm), chipLocation=(0,0), chipConfig='D', chipRot=90):
+    def __init__(self, PCBSize=30*mm, shape=2, mmpxLocs=[4,0,0,0],chipSize = (10*mm,5*mm), chipLocation=(0,0), chipConfig='D', chipRot=90):
         '''
         constructor of the PCB class
 
@@ -44,7 +45,7 @@ class PCB:
         self.chipRot = 90
 
         #mmpx positions: a list for shape 2 or a number for shape 1
-        self.mmpxs = mmpxs
+        self.mmpxLocs = mmpxLocs
         self.mmpxLoc = []
 
         self.viaPositions = []
@@ -119,7 +120,7 @@ class PCB:
 
         #top, bottom
         for i in [0,2]:
-            num = self.mmpxs[i]
+            num = self.mmpxLocs[i]
             if num == 0:
                 continue
             dis = (px)/(num)
@@ -132,7 +133,7 @@ class PCB:
 
         #sides
         for i in [1,3]:
-            num = self.mmpxs[i]
+            num = self.mmpxLocs[i]
             if num == 0:
                 continue
             dis = (py-my)/(num-1)
@@ -180,11 +181,6 @@ class PCB:
         pass
 
    
-
-    def addVia(self):
-        pass
-
-
     def addArc(self, initAngle, degrees, placeInfo, flip=False, rbend=None, name = None,
             vias=False, rot=0):
         '''
@@ -311,7 +307,8 @@ class PCB:
 
         routeCell, allViaLocs = md.CPWroutePCB(self.startcoords, tdx, tdy, rot = rotBack,
                 chipWidth=self.size[1], bridges=False, vias=vias)
-        self.viaPositions.append(allViaLocs)
+        print 'viaLocs are ', allViaLocs
+        self.viaPositions.extend(allViaLocs)
 
         self.topCell.add(routeCell)
 
@@ -319,30 +316,68 @@ class PCB:
         '''
         adds vias to unoccupied places
         '''
+        print 'viaPositions are ', self.viaPositions
+        print 'length is ', len(self.viaPositions)
         
         #load design constants
         ivD = defaults['interviaDistance']
+        rvD = defaults['randomViaDistance']
+        PCBSize = self.size
+
+        rViaCell = cad.core.Cell('RANDOMVIA')
+
+        #pick a random starting spot:
+        xs = np.arange(-PCBSize[0]/2+rvD/2,PCBSize[0]/2-rvD/2, rvD)
+        ys = np.arange(-PCBSize[1]/2+rvD/2,PCBSize[1]/2-rvD/2, rvD)
+        for x in xs:
+            for y in ys:
+                rcoords = np.array([x,y]) + np.random.random(2)*[rvD, rvD]
+                if not self.Forbidden(rcoords, rvD):
+                    newVia = md.Via(rcoords)
+                    rViaCell.add(newVia)
+                    self.viaPositions.append(rcoords)
+
+        self.topCell.add(rViaCell)
+
+
+    def Forbidden(self, coords, rvD):
+        ''' 
+        checks if a point is within interviaDistance of an MMPX connector or a chip
+        '''
+
+        #design values
         mmpxSize = defaults['MMPXEdge']
-        chipSize = defaults[
+        x, y = coords
+        chipSize = self.chipSize
 
-        #PCBSize
-
-        #occupied spots:
-            #MMPX
-        for m in range(self.mmpxs):
+        #check for mmpx connectors
+        for m in range(1,self.MMPXs+1):
             #get location
-            getattr(
-            #get rotation
-            #
+            cmmpx = getattr(self, 'mmpxEdge'+str(m))
+            mx, my = cmmpx.coords
+            mrot = cmmpx.rot
+            if abs(x-mx/2) < (abs(np.cos(mrot)*mmpxSize[0]/2) + abs(np.sin(mrot)*mmpxSize[1]/2)):
+                if abs(y-my/2) < (abs(np.cos(mrot)*mmpxSize[1]/2) + abs(np.sin(mrot)*mmpxSize[0]/2)):
+                    print 'avoided mmpx', m
+                    return True
 
-            #chip
-        for c in range(self.chips):
+        #check for chips
+        for c in range(1,self.chips+1):
+            #get location
+            cchip = getattr(self, 'Chip'+str(c))
+            cx, cy = cchip.coords
+            crot = cchip.rot
+            if abs(x-cx/2) < (abs(np.cos(crot)*chipSize[0]/2) + abs(np.sin(crot)*chipSize[1]/2)):
+                if abs(y-cy/2) < (abs(np.cos(crot)*chipSize[1]/2) + abs(np.sin(crot)*chipSize[0]/2)):
+                    return True
+        
+        #check for other vias:
+        for i in range(len(self.viaPositions)):
+            vx, vy = self.viaPositions[i]
+            if np.sqrt(np.power((x-vx),2)+np.power((y-vy),2)) < rvD:
+                return True
 
-        #go through list of via points
-
-    def checkForbidden(self, coords, forbiddenList):
-        pass
-
+        return False
 
 
 
@@ -370,7 +405,11 @@ class PCB:
         c2.show()
 
 
-
+    def str_to_class(st):
+        '''
+        Takes a string, returns the class of the name str
+        '''
+        return getattr(st)
 
 
 #=======================================================================
@@ -410,7 +449,7 @@ class Chip:
         #draw and add Cell
         if self.vias:
             self.Cell, viaLocs = md.chip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
-            PCBX.viaPositions.append(viaLocs)
+            PCBX.viaPositions.extend(viaLocs)
         else:
             self.Cell = md.chip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
         PCBX.topCell.add(self.Cell)
@@ -435,7 +474,7 @@ class EdgeMMPX:
 
         #draw and add the cell
         self.Cell, viaLocs = md.MMPXEdge(self.coords, rot=self.rot)
-        PCBX.viaPositions.append(viaLocs)
+        PCBX.viaPositions.extend(viaLocs)
         PCBX.topCell.add(self.Cell)
 
 
@@ -481,7 +520,7 @@ class CPW:
 
         self.makeCell(PCBX)
         if self.vias:
-            PCBX.viaPositions.append(self.viapos)
+            PCBX.viaPositions.extend(self.viapos)
         else:
             self.Cell = self.makeCell(PCBX)
 
@@ -562,7 +601,7 @@ class Arc:
                 center =PCBX.a1, gap=PCBX.abr*PCBX.a1,  radius=self.rbend, vias=self.vias, rot = self.rot)
         if self.vias:
             self.Cell, pos = cellInfo
-            PCBX.viaPositions.append(pos)
+            PCBX.viaPositions.extend(pos)
         #Add the cell to the TopCell
         PCBX.topCell.add(self.Cell)
 
@@ -584,4 +623,3 @@ def arcrad(radians):
     translates degrees to radians
     '''
     return radians * 360 / 2 / np.pi 
-

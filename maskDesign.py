@@ -3,6 +3,7 @@ import matplotlib as mpl
 import numpy as np
 import defaultParms as dp
 
+
 defaults = dp.dPars()
 dLists = dp.dLists()
 
@@ -190,6 +191,7 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
         return cpwCellr
 
     else:
+        print 'fault is in CPW somewhere'
         #Cell for vias
         pb1 = defaults['PCBgap']
         viaCell = cad.core.Cell('VIA')
@@ -205,7 +207,7 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
             viaLocs.append([x,y])
             v1 = Via(viaLocs[-1], viaDiam)
             viaLocs.append([x,-y])
-            v2 = Via(viaLocs[-1], viaDiam)
+            v2= Via(viaLocs[-1], viaDiam)
             cpwCell.add([v1, v2])
 
         #rotate and translate vias
@@ -2006,12 +2008,12 @@ def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0
         if abs(dy) > abs(dx):
             if  abs(dx) >= minrbend:
                 cCell, viaLocs = CPW((0, (dy-abs(dx))/2), dy-abs(dx), center=center, gap=gap, vias=True, rot=90)
-                allViaLocs.append(viaLocs)
+                allViaLocs.extend(viaLocs)
                 if coords[0] < 0:
                     arcCell, viapos = CPWArc((dx, (dx+dy)), 180, 90, radius=dx, center=center, vias=True, gap=gap)
                 elif coords[0] > 0:
                     arcCell, viapos = CPWArc((dx, (dy-dx)), 90, 90, radius=dx, center=center, vias=True, gap=gap)
-                allViaLocs.append(viapos)
+                allViaLocs.extend(viapos)
                 routeCell.add([arcCell, cCell])
             
             #in case the horizontal distance is small
@@ -2026,11 +2028,11 @@ def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0
                 elif coords[0] > 0:
                     arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 90, 90, radius=minrbend, center=center, vias=True, gap=gap)
                     sCell, yspanc, pos2 = doubleArc((-(minrbend-dx)/2, dy-minrbend-yspan/2), minrbend-dx, rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
-                allViaLocs.append(pos1)
-                allViaLocs.append(pos2)
+                allViaLocs.extend(pos1)
+                allViaLocs.extend(pos2)
                 cCell, viaLocs = CPW((0, (dy-minrbend-yspan)/2), dy-minrbend-yspan, center=center, gap=gap, vias=True, rot=90)
                 routeCell.add([arcCell, sCell, cCell])#, sCell, cCell])
-                allViaLocs.append(viaLocs)
+                allViaLocs.extend(viaLocs)
             else:
                 print 'Undefined situation in CPWroutePCB'
     else:
@@ -2134,7 +2136,7 @@ def chipVias(chipSize, coords, chipType, rot):
     #sides
     ynums = np.round(y/ivD)
     ydis = y/(ynums-1)
-    ys = np.arange(-y/2, y/2+ydis, ydis)
+    ys = np.arange(-y/2, y/2+1, ydis)
     for yn in ys:
         posList.extend([[-xv/2, yn],[xv/2, yn]])
         VA.add(Via([-xv/2, yn]))
@@ -2165,6 +2167,7 @@ def transRotVias(viaLocs, trans=(0,0), rot=0):
     rotate and translate via locations
     Input: via Locations, translation coords, rotation in degrees
     '''
+    print 'viaLocs is ', viaLocs
     viaLocsR = []
     for viacoord in viaLocs:
         x,y = viacoord
