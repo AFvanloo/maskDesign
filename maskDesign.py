@@ -819,7 +819,6 @@ def doubleArc(coords, dy, rbend = 100*um, center=a1, gap=b1, vias=False, rot=0):
         print 'pos2 is ', pos2
         viaLocs = pos1
         viaLocs.extend(pos2)
-        print 'viaLocs is ', viaLocs
         viaLocs = transRotVias(viaLocs, trans=coords, rot=rot)
 
     dACell.add([arc1Cell, arc2Cell])
@@ -1965,7 +1964,7 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
         vhD = defaults['viaHorizDistance']
         #vertical part
         x1 = -x/2 - vhD
-        ylocs = np.arange(-y/2-vhD,y/2,ivD)
+        ylocs = np.arange(-y/2-vhD,y/2 - ivD,ivD)
         for y in ylocs:
             viaLocs.append([x1,y])
             viaLocs.append([-x1,y])
@@ -2006,13 +2005,15 @@ def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0
 
     if endrot not in ['r', 'l']:
         if abs(dy) > abs(dx):
+            #if the horizontal distance is appreciable
             if  abs(dx) >= minrbend:
                 cCell, viaLocs = CPW((0, (dy-abs(dx))/2), dy-abs(dx), center=center, gap=gap, vias=True, rot=90)
                 allViaLocs.extend(viaLocs)
                 if coords[0] < 0:
-                    arcCell, viapos = CPWArc((dx, (dx+dy)), 180, 90, radius=dx, center=center, vias=True, gap=gap)
+                    arcCell, viapos = CPWArc((dx, abs(abs(dy)-abs(dx))), 180, np.cos(rad(rot))*-90, radius=dx, center=center, vias=True, gap=gap)
                 elif coords[0] > 0:
-                    arcCell, viapos = CPWArc((dx, (dy-dx)), 90, 90, radius=dx, center=center, vias=True, gap=gap)
+                    arcCell, viapos = CPWArc((dx, abs(abs(dy)-abs(dx))), 180, np.cos(rad(rot))*90, radius=dx, center=center, vias=True, gap=gap)
+                    #arcCell, viapos = CPWArc((dx, (dy-dx)), 90, 90, radius=dx, center=center, vias=True, gap=gap)
                 allViaLocs.extend(viapos)
                 routeCell.add([arcCell, cCell])
             
@@ -2020,14 +2021,16 @@ def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0
             elif (0 < abs(dx) < abs(minrbend)):
                 #calculate span of double arc
                 phirad = np.arccos(1-(abs(dx)+minrbend)/(2*minrbend))
+                phirad = np.arccos(1-(minrbend-abs(dx))/(2*minrbend))
                 yspan = 2*minrbend*np.sin(phirad) # span of double arc
-
+                print 'yspan is going to be ', yspan
                 if coords[0] < 0:
-                    arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 0, 90, radius=minrbend, center=center, gap=gap, vias=True)
-                    sCell, yspanc, pos2 = doubleArc(((minrbend+dx)/2, dy-1*minrbend-yspan/2), -dx-minrbend, rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
+                    arcCell, pos1 = CPWArc((dx, abs(abs(dy)-minrbend)), 90, np.cos(rad(rot))*90, radius=minrbend, center=center, gap=gap, vias=True)
+                    sCell, yspanc, pos2 = doubleArc((-np.cos(rad(rot))*(minrbend-abs(dx))/2, dy-minrbend-yspan/2), np.cos(rad(rot))*(minrbend-abs(dx)), rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
                 elif coords[0] > 0:
-                    arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 90, 90, radius=minrbend, center=center, vias=True, gap=gap)
-                    sCell, yspanc, pos2 = doubleArc((-(minrbend-dx)/2, dy-minrbend-yspan/2), minrbend-dx, rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
+                    arcCell, pos1 = CPWArc((dx, abs(abs(dy)-minrbend)), 90, np.cos(rad(rot))*-90, radius=minrbend, center=center, gap=gap, vias=True)
+                    #arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 90, 90, radius=minrbend, center=center, vias=True, gap=gap)
+                    sCell, yspanc, pos2 = doubleArc((np.cos(rad(rot))*(minrbend-abs(dx))/2, dy-minrbend-yspan/2), np.cos(rad(rot))*-(minrbend-abs(dx)), rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
                 allViaLocs.extend(pos1)
                 allViaLocs.extend(pos2)
                 cCell, viaLocs = CPW((0, (dy-minrbend-yspan)/2), dy-minrbend-yspan, center=center, gap=gap, vias=True, rot=90)
@@ -2066,7 +2069,9 @@ def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0
             arcCell, pos = CPWArc((dx-rbend, dy), 0, 90, gap=gap, center=center)
             routeCell.add(arcCell)
             allViaLocs.append(pos)
+
     #rotate and translate
+    allViaLocs = transRotVias(allViaLocs, trans=coords[:2], rot=rot)
     routeCellr = cad.core.CellReference(routeCell, rotation = rot)
     routeCellr.translate(coords[:2])
 
@@ -2167,12 +2172,13 @@ def transRotVias(viaLocs, trans=(0,0), rot=0):
     rotate and translate via locations
     Input: via Locations, translation coords, rotation in degrees
     '''
-    print 'viaLocs is ', viaLocs
     viaLocsR = []
     for viacoord in viaLocs:
         x,y = viacoord
-        viaLocsR.append([x*np.cos(rot)-y*np.sin(rot)+trans[0],
-            y*np.cos(rot)+x*np.sin(rot)+trans[1]])
+        #rotate
+        viaLocsR.append([x*np.cos(rad(rot))-y*np.sin(rad(rot))+trans[0],
+            y*np.cos(rad(rot))+x*np.sin(rad(rot))+trans[1]])
+        #translate
     return viaLocsR
 
 

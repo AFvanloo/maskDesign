@@ -128,8 +128,8 @@ class PCB:
             y = (py-my)/2*(1-i) 
             crot = 90*(-i)
             for x in xs:
-                self.mmpxLoc.append((x,y))
-                self.addEdgeMMPX((x,y), rot=crot)
+                self.mmpxLoc.append([x,y])
+                self.addEdgeMMPX([x,y], rot=crot)
 
         #sides
         for i in [1,3]:
@@ -275,6 +275,8 @@ class PCB:
         dx = self.endcoords[0] - self.startcoords[0]
         dy = self.endcoords[1] - self.startcoords[1]
 
+        print 'startcoordsx, endcoordsx are ', self.startcoords
+
         #Re-express as an upgoing problem
         if self.startrot%90 != 0:
             raise ValueError, 'Use only multiples of 90 degrees when connecting a line'
@@ -297,6 +299,7 @@ class PCB:
             rotBack = 180
 
         print 'tdx, tdy are', tdx, tdy
+        print 'rotBack is ', rotBack
 
         if endrot == 'l': 
             tdx += self.rbend
@@ -307,7 +310,6 @@ class PCB:
 
         routeCell, allViaLocs = md.CPWroutePCB(self.startcoords, tdx, tdy, rot = rotBack,
                 chipWidth=self.size[1], bridges=False, vias=vias)
-        print 'viaLocs are ', allViaLocs
         self.viaPositions.extend(allViaLocs)
 
         self.topCell.add(routeCell)
@@ -316,23 +318,27 @@ class PCB:
         '''
         adds vias to unoccupied places
         '''
-        print 'viaPositions are ', self.viaPositions
         print 'length is ', len(self.viaPositions)
         
         #load design constants
         ivD = defaults['interviaDistance']
         rvD = defaults['randomViaDistance']
+        ihD = defaults['viaHorizDistance']
         PCBSize = self.size
 
         rViaCell = cad.core.Cell('RANDOMVIA')
 
         #pick a random starting spot:
-        xs = np.arange(-PCBSize[0]/2+rvD/2,PCBSize[0]/2-rvD/2, rvD)
-        ys = np.arange(-PCBSize[1]/2+rvD/2,PCBSize[1]/2-rvD/2, rvD)
-        for x in xs:
-            for y in ys:
-                rcoords = np.array([x,y]) + np.random.random(2)*[rvD, rvD]
-                if not self.Forbidden(rcoords, rvD):
+        x1s = np.arange(-PCBSize[0]/2+rvD/2,PCBSize[0]/2-ihD, rvD)
+        x2s = np.arange(-PCBSize[0]/2+rvD,PCBSize[0]/2-ihD, rvD)
+        ys = np.arange(-PCBSize[1]/2+rvD/2,PCBSize[1]/2-ihD, np.cos(rad(30))*rvD)
+        counter=0
+        for y in ys:
+            xlist = [x1s, x2s][counter%2]
+            counter += 1
+            for x in xlist:
+                rcoords = np.array([x,y]) #+ np.random.random(2)*[rvD, rvD]
+                if not self.Forbidden(rcoords):
                     newVia = md.Via(rcoords)
                     rViaCell.add(newVia)
                     self.viaPositions.append(rcoords)
@@ -340,13 +346,16 @@ class PCB:
         self.topCell.add(rViaCell)
 
 
-    def Forbidden(self, coords, rvD):
+    def Forbidden(self, coords):
         ''' 
         checks if a point is within interviaDistance of an MMPX connector or a chip
         '''
 
         #design values
         mmpxSize = defaults['MMPXEdge']
+        ivD = defaults['interviaDistance']
+        rvD = defaults['randomViaDistance']
+        ihD = defaults['viaHorizDistance']
         x, y = coords
         chipSize = self.chipSize
 
@@ -356,9 +365,8 @@ class PCB:
             cmmpx = getattr(self, 'mmpxEdge'+str(m))
             mx, my = cmmpx.coords
             mrot = cmmpx.rot
-            if abs(x-mx/2) < (abs(np.cos(mrot)*mmpxSize[0]/2) + abs(np.sin(mrot)*mmpxSize[1]/2)):
-                if abs(y-my/2) < (abs(np.cos(mrot)*mmpxSize[1]/2) + abs(np.sin(mrot)*mmpxSize[0]/2)):
-                    print 'avoided mmpx', m
+            if abs(x-mx) < (abs(np.cos(rad(mrot))*mmpxSize[0]/2) + abs(np.sin(rad(mrot))*mmpxSize[1]/2)) + 2*ihD:
+                if abs(y-my) < (abs(np.cos(rad(mrot))*mmpxSize[1]/2) + abs(np.sin(rad(mrot))*mmpxSize[0]/2)) + 2*ihD:
                     return True
 
         #check for chips
@@ -367,14 +375,14 @@ class PCB:
             cchip = getattr(self, 'Chip'+str(c))
             cx, cy = cchip.coords
             crot = cchip.rot
-            if abs(x-cx/2) < (abs(np.cos(crot)*chipSize[0]/2) + abs(np.sin(crot)*chipSize[1]/2)):
-                if abs(y-cy/2) < (abs(np.cos(crot)*chipSize[1]/2) + abs(np.sin(crot)*chipSize[0]/2)):
+            if abs(x-cx/2) < (abs(np.cos(rad(crot))*chipSize[0]/2) + abs(np.sin(rad(crot))*chipSize[1]/2)) + 2*ihD:
+                if abs(y-cy/2) < (abs(np.cos(rad(crot))*chipSize[1]/2) + abs(np.sin(rad(crot))*chipSize[0]/2)) + 2*ihD:
                     return True
         
         #check for other vias:
         for i in range(len(self.viaPositions)):
             vx, vy = self.viaPositions[i]
-            if np.sqrt(np.power((x-vx),2)+np.power((y-vy),2)) < rvD:
+            if np.sqrt(np.power((x-vx),2)+np.power((y-vy),2)) < 2*ihD:
                 return True
 
         return False
@@ -469,8 +477,8 @@ class EdgeMMPX:
 
         #make the cell
         mx, my = defaults['MMPXEdge']
-        self.connect = (self.coords[0] + my/2*np.sin(self.rot),
-            self.coords[1] - my/2*np.cos(self.rot))
+        self.connect = (self.coords[0] + my/2*np.sin(rad(self.rot)),
+            self.coords[1] - my/2*np.cos(rad(self.rot)))
 
         #draw and add the cell
         self.Cell, viaLocs = md.MMPXEdge(self.coords, rot=self.rot)
