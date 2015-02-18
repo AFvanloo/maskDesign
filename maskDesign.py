@@ -965,22 +965,22 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     wiggleCell = cad.core.Cell('WIGGLE')
 
     #left part of straight
-    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA)
-    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB)
+    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA, center=center, gap=gap)
+    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB, center=center, gap=gap)
     wiggleCell.add([leftLine,rightLine])
     totlenc += straightx
 
     #enter and exit arc
-    enArc = sLine((-xspan/2.+straightx/2.+xOffset+rbend,-skew/2+yspan/2.+yOffset/2.),yspan+yOffset+skew)
+    enArc = sLine((-xspan/2.+straightx/2.+xOffset+rbend,-skew/2+yspan/2.+yOffset/2.),yspan+yOffset+skew, center=center, gap=gap)
 
     totlenc += np.pi*rbend+yspan + skew-2.*rbend+yOffset
     if nwiggle%2==0:
         exArc = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2*rbend+rbend,
-            -yspan/2.+yOffset/2.+skew/2.),yspan-yOffset + skew)
+            -yspan/2.+yOffset/2.+skew/2.),yspan-yOffset + skew, center=center, gap=gap)
         totlenc += np.pi*rbend +yspan + skew-2*rbend-yOffset
     else:
         exArc = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2.*rbend+rbend,
-            yspan/2.+yOffset/2.+skew/2.), yspan+yOffset-skew,reflect=True)
+            yspan/2.+yOffset/2.+skew/2.), yspan+yOffset-skew, center=center, gap=gap, reflect=True)
         totlenc += np.pi*rbend + yspan - skew + yOffset - 2.*rbend
     wiggleCell.add([enArc,exArc])
     
@@ -988,10 +988,10 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     for i in range(nwiggle-1):
         if i%2==1:
             wiggle = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
-                yOffset),2.*yspan)
+                yOffset),2.*yspan, center=center, gap=gap)
         else:
             wiggle = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
-                yOffset),2.*yspan,reflect=True)
+                yOffset),2.*yspan,center=center, gap=gap, reflect=True)
         wiggleCell.add([wiggle])
         totlenc += 2*(yspan-rbend)+np.pi*rbend
 
@@ -1964,7 +1964,7 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
         vhD = defaults['viaHorizDistance']
         #vertical part
         x1 = -x/2 - vhD
-        ylocs = np.arange(-y/2-vhD,y/2 - ivD,ivD)
+        ylocs = np.arange(-y/2-vhD,y/2,ivD)
         for y in ylocs:
             viaLocs.append([x1,y])
             viaLocs.append([-x1,y])
@@ -2105,11 +2105,12 @@ def arcVias(initAngle, degrees, radius, center, gap):
         arcLen = abs(2*np.pi*r*degrees/360)
         #TODO Just changed arcLen to abs arcLen
         if arcLen <= 2*ivD:
-            locs = (r*np.cos(rad(initAngle+degrees/2)), r*np.sin(rad(initAngle+degrees/2)))
-            posList.append(locs)
-            VA.add(Via(locs))
+            print 'no arcs'
+            #locs = (r*np.cos(rad(initAngle+degrees/2)), r*np.sin(rad(initAngle+degrees/2)))
+            #posList.append(locs)
+            #VA.add(Via(locs))
         else:
-            nums = np.round(arcLen/ivD)
+            nums = np.floor(arcLen/ivD)
             phi1 = degrees * (ivD/2/arcLen)
             dphi = abs((degrees/nums) * (arcLen-ivD)/(arcLen))
             phiList = np.arange(initAngle+phi1, initAngle+degrees, np.sign(degrees)*dphi)
@@ -2118,7 +2119,7 @@ def arcVias(initAngle, degrees, radius, center, gap):
                 nx, ny = r*np.cos(rad(p)), r*np.sin(rad(p))
                 posList.append([nx, ny])
                 VA.add(Via([nx,ny]))
-    
+
     #return
     return VA, posList
 
@@ -2155,9 +2156,10 @@ def chipVias(chipSize, coords, chipType, rot):
     pos = [-np.mean(oC), 0 , np.mean(oC)] #0 is mean between oC[0] and -oC[0]
     print 'pos is ', pos
     for p in pos:
-        posList.extend([[p, -yv/2],[p, yv/2]])
-        VA.add(Via([p,-yv/2]))
-        VA.add(Via([p,yv/2]))
+        #posList.extend([[p, -yv/2],[p, yv/2]])
+        #VA.add(Via([p,-yv/2]))
+        #VA.add(Via([p,yv/2]))
+        pass
      
     viaLocs = transRotVias(posList, trans=coords, rot=rot)
 
