@@ -19,7 +19,7 @@ def dLists():
             (7000*um, 6600*um),
             (9.7*mm,4.7*mm), #4-5: Oxford Magnon design sizes: these are actually 5*10 and 5*5, but with an inside border
             (4.7*mm,4.7*mm),
-            (5*mm, 3*mm)] 
+            (4.5*mm, 2.8*mm)] 
     
     #Qudev / UQ parameters
     #offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
@@ -84,9 +84,9 @@ def dPars():
             'PCBcenter'             : .2*mm,                #parameters for PCB CPWs
             'PCBgap'                : .4*mm,
             'PCBrbend'              : 1*mm,     #minimum bend radius
-            'viaDiameter'           : .2*mm,                 
-            'interviaDistance'      : .5*mm,
-            'viaHorizDistance'      : .4*mm,
+            'viaDiameter'           : .5*mm,                 
+            'interviaDistance'      : 1*mm,
+            'viaHorizDistance'      : .5*mm,
             'randomViaDistance'     : 2*mm}     #distance between randomly placed vias
 
     return defDict

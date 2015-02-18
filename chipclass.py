@@ -19,8 +19,8 @@ defaults = dpars.dPars()
 class Sample:
 
     def __init__(self, border, launcherConfig='A', launcherPositions=[],
-            alignPos=[], label = '', labelPos = None, labelFontSize=None,
-            posRes = False):
+            alignPos=[], label = '', borderGap = None, labelPos = None, labelFontSize=None,
+            posRes = False, a1=None, b1=None):
         '''
         Calling constructor
 
@@ -56,10 +56,13 @@ class Sample:
         #Sample border Options
         self.borders = borderTagList[border]
         self.borderTag = border
-        self.borderGap = defaults['borderGap']
         self.posRes = posRes
         self.posResEdge = defaults['posResEdge']
         self.offCenters = offCenters
+        if borderGap == None:
+            self.borderGap = defaults['borderGap']
+        else:
+            self.borderGap = borderGap
 
         #launcher options
         self.launcherPositions = launcherPositions
@@ -72,8 +75,14 @@ class Sample:
         self.alignPos = alignPos
 
         #line options
-        self.a1 = defaults['centerConductor']
-        self.b1 = defaults['CPWGap']
+        if a1 == None:
+            self.a1 = defaults['centerConductor']
+        else:
+            self.a1 = a1
+        if b1 == None:
+            self.b1 = defaults['CPWGap']
+        else:
+            self.b1 = b1
         self.abr = self.b1/self.a1
         self.rbend = defaults['minimumRadius']
 
@@ -142,7 +151,7 @@ class Sample:
 
         #Start Constructing the Sample
         print 'border type is ', border 
-        if (border < 1) or (border > 4):
+        if (border < 1) or (border > 6):
             raise Exception, 'Choose border between 1 and 4'
             #If using python 3, replace with following line
             #raise Exception('Choose border between 1 and 4')
@@ -166,6 +175,7 @@ class Sample:
         self.addText(self.label, fontSize = 500*um, placeInfo = self.labelPos)
 
         #add Launchers
+        print 'in initSample, center is ', self.a1
         self.addLaunchers()
 
 #========================sampleX wrappers for objects===========================
@@ -544,6 +554,7 @@ class Sample:
         if gap == None: gap = self.b1
 
         
+        print 'in addlaunchers, center is ', center
         #get the position list associated with the chosen configuration 
         self.launcherLocations = self.launchPosList()
 
@@ -856,6 +867,7 @@ class Launcher:
         
         #initialize variables
         self.rot = rot
+
         
         #Decide if we have coordinates or connection
         if type(placeInfo) == int:
@@ -987,9 +999,6 @@ class CPW:
   #      if bridges:
   #          self.addBridges()
   #          sampleX.topCell.add(self.ABCellr)
-
-        print 'self.a1 is ', sampleX.a1
-
         #Add the CPW cell to the TopCell
         sampleX.topCell.add(self.Cell)
         
@@ -1079,7 +1088,7 @@ class Arc:
         make the cad Cell reference of the CPW
         '''
         self.Cell = md.CPWArc(self.coords, self.initAngle, self.degrees,
-                radius=self.rbend, rot = self.rot)
+                radius=self.rbend, rot = self.rot, center=sampleX.a1, gap=sampleX.b1)
         #Add the cell to the TopCell
         sampleX.topCell.add(self.Cell)
 
@@ -1122,12 +1131,12 @@ class DoubleArc:
                 self.xspan/2.*np.cos(rad(self.rot)), self.coords[1] +
                 self.xspan/2.*np.sin(rad(self.rot)) + self.dy/2*np.cos(rad(self.rot)))
 
-        self.makeCell()
+        self.makeCell(sampleX)
         sampleX.topCell.add(self.Cell)
 
-    def makeCell(self):
+    def makeCell(self, sampleX):
         self.Cell, b = md.doubleArc(self.coords, self.dy, rot = self.rot,
-                rbend=self.rbend)
+                rbend=self.rbend, center=sampleX.a1, gap=sampleX.b1)
 
         
 class SLine:
@@ -1204,7 +1213,7 @@ class SLine:
         '''
         self.Cell = md.sLine(self.coords, self.yspan, rbend=self.rbend,
                 reflect=self.reflect, enter=self.enter, exit = self.exit,
-                bridges = self.bridges, rot=self.rot)
+                bridges = self.bridges, rot=self.rot, center=sampleX.a1, gap=sampleX.b1)
         #Add the cell to the TopCell
         sampleX.topCell.add(self.Cell)
 
@@ -1241,7 +1250,7 @@ class JLine:
             self.coords = placeInfo
         
         #Make the Cell
-        self.makeCell()
+        self.makeCell(sampleX)
 
         #Add airbridges
         if bridges:
@@ -1251,10 +1260,10 @@ class JLine:
         #Add cell to total
         sampleX.topCell.add(self.Cell)
 
-    def makeCell(self):
+    def makeCell(self, sampleX):
 
         self.Cell, self.wigyspan = md.jLine(self.coords, self.totLen, self.xspan, self.yspan,
-                self.nWiggles, rbend=self.rbend, rot = self.rot)
+                self.nWiggles, rbend=self.rbend, rot = self.rot, center=sampleX.a1, gap=sampleX.b1)
 
     def addBridges(self):
         '''
@@ -1332,7 +1341,7 @@ class Wiggle:
                     self.coords[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
 
         #make the cell
-        self.makeCell()
+        self.makeCell(sampleX)
 
         if bridges != False:
             self.addBridges(sampleX)
@@ -1341,13 +1350,13 @@ class Wiggle:
         sampleX.topCell.add(self.Cellr)
 
 
-    def makeCell(self):
+    def makeCell(self, sampleX):
 
         #construct object
         self.Cellr, self.yspan = md.nWiggle(self.coords, self.leng, self.xspan, 
                 self.nWiggles, xOffset = self.xOffset, 
                 yOffset = self.yOffset, skew = self.skew, closeA = self.closeA,
-                closeB = self.closeB, rot=self.rot)
+                closeB = self.closeB, rot=self.rot, center=sampleX.a1, gap=sampleX.b1)
    
 
     def addBridges(self, sampleX):
@@ -1789,7 +1798,7 @@ class GapCoupler:
     def makeCell(self, sampleX):
 
         #construct object
-        self.Cell = md.gapCoupler(self.coords,self.gapSize,leng=self.leng,rot=self.rot)
+        self.Cell = md.gapCoupler(self.coords,self.gapSize,leng=self.leng,rot=self.rot, center=sampleX.a1, gap=sampleX.b1)
         #Add to sample Cell
         sampleX.topCell.add(self.Cell)
         
