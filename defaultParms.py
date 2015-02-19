@@ -19,7 +19,8 @@ def dLists():
             (7000*um, 6600*um),
             (9.7*mm,4.7*mm), #4-5: Oxford Magnon design sizes: these are actually 5*10 and 5*5, but with an inside border
             (4.7*mm,4.7*mm),
-            (4.5*mm, 2.8*mm)] 
+            (4.5*mm, 2.8*mm),   #Edward Laird group sizes 
+            (10*mm, 10*mm)]
     
     #Qudev / UQ parameters
     #offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
@@ -48,7 +49,6 @@ def dPars():
             'LAlignSize'            : 500*um,   #Horizontal size of L-shaped alignment mark
             'LAlignThick'           : 100*um,   #Thickness of L-shaped alignment mark
             'launcherWidth'         : 150*um,   #Launcher
-            'launcherWidth'         : 150*um,   
             'launcherWideLen'       : 250*um,
             'launcherTaperLen'      : 250*um,
             'gapCouplerSize'        : 5*um,     #GapCoupler
@@ -81,8 +81,9 @@ def dPars():
             'labelFontSize'         : 360*um,   # take ~.9*labelSpace
             'labelSpace'            : 400*um,   #space for labels on mostly black chips
             'MMPXEdge'              : (3.5*mm, 5.2*mm),     # side MMPX dimensions
-            'PCBcenter'             : .2*mm,                #parameters for PCB CPWs
-            'PCBgap'                : .4*mm,
+            'PCBcenter'             : .382*mm,                #parameters for PCB CPWs
+            'PCBgap'                : .58*mm,
+            'PCBChipMargin'         : .5*mm,    #total maring: half of this is added to each side
             'PCBrbend'              : 1*mm,     #minimum bend radius
             'viaDiameter'           : .5*mm,                 
             'interviaDistance'      : 1*mm,

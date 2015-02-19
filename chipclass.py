@@ -151,7 +151,7 @@ class Sample:
 
         #Start Constructing the Sample
         print 'border type is ', border 
-        if (border < 1) or (border > 6):
+        if (border < 1) or (border > 7):
             raise Exception, 'Choose border between 1 and 4'
             #If using python 3, replace with following line
             #raise Exception('Choose border between 1 and 4')
@@ -172,7 +172,7 @@ class Sample:
         self.border1 = Border(self)
 
         #add label
-        self.addText(self.label, fontSize = 500*um, placeInfo = self.labelPos)
+        self.addText(self.label, placeInfo = self.labelPos)
 
         #add Launchers
         print 'in initSample, center is ', self.a1
@@ -647,7 +647,7 @@ class Sample:
 
 
 
-    def addText(self, text, placeInfo=None, fontSize = 200*um, font = None, rot=0, layer=0):
+    def addText(self, text, placeInfo=None, fontSize=None, font = None, rot=0, layer=0):
         '''
         Add labels to the chip
 
@@ -661,6 +661,7 @@ class Sample:
         '''
 
         if font == None: font = self.labelFont
+        if fontSize == None: font = self.labelFontSize
         #Determine some coordinates for the text
         if placeInfo == None: 
             mtext = max(text.split('\n'))

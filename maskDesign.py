@@ -311,30 +311,33 @@ def taper(coords,taperlen, startOuter, endOuter,
     return taperCellr
 
 
-def launcher(coords,startcenterwidth=150*um,startgrwidth=150*1.9*um,
+def launcher(coords,startCenterWidth=None,startGapWidth=None,
         startlength=250.*um,taperlength=250.*um, center=10.*um, gap=19.*um, rot=0.):
     '''
     draw a launcher:
     '''
     
+    if startCenterWidth==None: startCenterWidth=defaults['launcherWidth']
+    if startGapWidth==None: startGapWidth = (gap/center)*startCenterWidth
+
     #init
     launcherCell = cad.core.Cell('LAUNCHER')
     startx, starty = coords
 
     #define points
-    gapuppoints = [(0,startgrwidth/2.),
-            (startlength,startgrwidth/2.),
+    gapuppoints = [(0,startGapWidth/2.),
+            (startlength,startGapWidth/2.),
             (taperlength+startlength,gap/2.),
             (taperlength+startlength,center/2.),
-            (startlength,startcenterwidth/2.),
-            (0,startcenterwidth/2.)]
+            (startlength,startCenterWidth/2.),
+            (0,startCenterWidth/2.)]
 
-    gapdownpoints = [(0,-startgrwidth/2.),
-            (startlength,-startgrwidth/2.),
+    gapdownpoints = [(0,-startGapWidth/2.),
+            (startlength,-startGapWidth/2.),
             (taperlength+startlength,-gap/2.),
             (taperlength+startlength,-center/2.),
-            (startlength,-startcenterwidth/2.),
-            (0,-startcenterwidth/2.)]
+            (startlength,-startCenterWidth/2.),
+            (0,-startCenterWidth/2.)]
 
     #draw the boundaries
     bdup = cad.core.Boundary(gapuppoints)
@@ -1900,7 +1903,7 @@ def PCBShape1(PCBSize, chipSize=(5*mm,10*mm)):
     return PC
 
 
-def PCBShape2(PCBSize, chipSize=(10*mm,5*mm)):
+def PCBShape2(PCBSize, gap=2*mm, thick=2*mm, offCenter=(0,0), chipSize=(10*mm,5*mm)):
     '''
     square design
     '''
@@ -1909,8 +1912,8 @@ def PCBShape2(PCBSize, chipSize=(10*mm,5*mm)):
 
     #boundary
     xp, yp = PCBSize
-    linethick = 1*mm
-    b = border(xp,yp,linethick, layer=1)
+    linethick = 2*mm
+    b = PCBBorder(PCBSize, gap=gap, thick=thick, offCenter=offCenter, layer=1)
 
     PC.add(b)
     return PC
@@ -1939,6 +1942,49 @@ def chip(coords, chipSize, chipType='D', vias=True, rot=0):
         return CCr, viaLocs
     else:
         return CCr
+
+def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layer=1):
+    '''
+    offcenter is for displacing the gaps from the center in order to line them up
+        list of 2 values, one for the top edge, one for the lower edge   
+    '''
+    
+    BC = cad.core.Cell('PCBORDER')
+    x,y = pcbSize
+    hg = gap/2
+    ocb = offCenter[1]
+    if ocb == 0:
+        ocb = x/3
+
+
+    #topLeft
+    ptl = [[-x/2, hg], [-x/2, y/2], [-hg - offCenter[0], y/2], [-hg - offCenter[0], y/2+gap], 
+            [-x/2-gap, y/2+gap], [-x/2-gap, hg],[-x/2,hg]]
+    btl = cad.core.Boundary(ptl, layer=layer)
+
+    #topRight
+    ptr = [[x/2, hg], [x/2, y/2], [hg + offCenter[0], y/2], [hg + offCenter[0], y/2+gap], 
+            [x/2+gap, y/2+gap], [x/2+gap, hg],[x/2,hg]]
+    btr = cad.core.Boundary(ptr, layer=layer)
+
+    #bottom Left
+    pbl = [[-x/2, -hg], [-x/2, -y/2], [-ocb-hg, -y/2], [-ocb-hg, -y/2-gap],
+            [-x/2-hg, -y/2-gap], [-x/2-gap, -y/2-gap], [-x/2-gap, -hg], [-x/2, -hg]]
+    bbl = cad.core.Boundary(pbl, layer=layer)
+
+    #bottom right
+    pbr = [[x/2, -hg], [x/2, -y/2], [ocb+hg, -y/2], [ocb+hg, -y/2-gap],
+            [x/2+hg, -y/2-gap], [x/2+gap, -y/2-gap], [x/2+gap, -hg], [x/2, -hg]]
+    bbr = cad.core.Boundary(pbr, layer=layer)
+
+    #bottom center
+    bbc = cad.shapes.Rectangle((-ocb+hg, -y/2-gap),(ocb-hg, -y/2), layer=layer)
+
+    BC.add([btl, btr, bbl, bbr, bbc])
+
+    return BC
+
+
 
 def MMPXEdge(coords, vias=True, layer=1, rot=0):
     '''
@@ -2142,7 +2188,7 @@ def chipVias(chipSize, coords, chipType, rot):
     #sides
     ynums = np.round(y/ivD)
     ydis = y/(ynums-1)
-    ys = np.arange(-y/2, y/2+1, ydis)
+    ys = np.arange(-y/2+ydis, y/2, ydis)
     for yn in ys:
         posList.extend([[-xv/2, yn],[xv/2, yn]])
         VA.add(Via([-xv/2, yn]))
@@ -2164,6 +2210,37 @@ def chipVias(chipSize, coords, chipType, rot):
     viaLocs = transRotVias(posList, trans=coords, rot=rot)
 
     return VA, viaLocs
+
+def PCBAlign(coords=(0,0)):
+    '''
+    3layer align structure, no aligning for the mill?'
+
+    via hole at the center
+
+    crossbar in layer X
+    Disk in layer Z
+    '''
+
+    AC = cad.core.Cell('ALIGN')
+    vD = defaults['viaDiameter']
+
+    v = Via((0,0))
+    d = cad.shapes.Disk((0,0), 2.4*mm, inner_radius=1.6*mm)
+
+    #crossbar
+    th = .2*mm
+    le = 4*mm
+    bh = cad.shapes.Rectangle((-le/2, -th/2),(le/2, th/2))
+    bv = cad.shapes.Rectangle((-th/2, -le/2),(th/2, le/2))
+
+    AC.add([v,d,bh,bv])
+
+    #rotate, translate
+    ACr = cad.core.CellReference(AC, origin=coords)
+
+    return ACr
+
+
 
 #==========================================================================
 #-------------------------------UTILITIES----------------------------------
