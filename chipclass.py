@@ -661,7 +661,7 @@ class Sample:
         '''
 
         if font == None: font = self.labelFont
-        if fontSize == None: font = self.labelFontSize
+        if fontSize == None: fontSize = self.labelFontSize
         #Determine some coordinates for the text
         if placeInfo == None: 
             mtext = max(text.split('\n'))
@@ -1905,7 +1905,7 @@ class FingerCoupler:
         #construct object
         self.Cell = md.fingerCoupler(self.coords,self.nFingers, self.fingerLen,
                 self.fingerThick, self.gapHeight, self.gapWidth, 
-                self.taperLen, self.centerLen, rot=self.rot)
+                self.taperLen, self.centerLen, center=sampleX.a1, gap=sampleX.b1, rot=self.rot)
         #Add to sample Cell
         sampleX.topCell.add(self.Cell)
         
