@@ -762,9 +762,7 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
         texts = cad.shapes.Label(text,fontsize,coords,layer=layer)
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
-        texts.add_text(text,font)
-
-    textCell.add(texts)
+        texts.add_text(text,font.add(texts))
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -1913,12 +1911,12 @@ def PCBShape2(PCBSize, gap=2*mm, thick=2*mm, offCenter=(0,0), chipSize=(10*mm,5*
     #boundary
     xp, yp = PCBSize
     linethick = 2*mm
-    b = PCBBorder(PCBSize, gap=gap, thick=thick, offCenter=offCenter, layer=1)
+    b = PCBBorder(PCBSize, gap=gap, thick=thick, offCenter=offCenter, layers=[0,1])
 
     PC.add(b)
     return PC
 
-def chip(coords, chipSize, chipType='D', vias=True, rot=0):
+def chip(coords, chipSize, chipType='D', vias=True, rot=0, layers=[0,1]):
     '''
     draw a chip
     '''
@@ -1926,8 +1924,9 @@ def chip(coords, chipSize, chipType='D', vias=True, rot=0):
     CC = cad.core.Cell('CHIP')
 
     x,y = chipSize
-    r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2), layer=1)
-    CC.add(r1) 
+    for l in layers:
+        r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2), layer=l)
+        CC.add(r1) 
 
     #vias:
     if vias:
@@ -1943,7 +1942,7 @@ def chip(coords, chipSize, chipType='D', vias=True, rot=0):
     else:
         return CCr
 
-def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layer=1):
+def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layers=[0,1]):
     '''
     offcenter is for displacing the gaps from the center in order to line them up
         list of 2 values, one for the top edge, one for the lower edge   
@@ -1960,33 +1959,33 @@ def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layer=1):
     #topLeft
     ptl = [[-x/2, hg], [-x/2, y/2], [-hg - offCenter[0], y/2], [-hg - offCenter[0], y/2+gap], 
             [-x/2-gap, y/2+gap], [-x/2-gap, hg],[-x/2,hg]]
-    btl = cad.core.Boundary(ptl, layer=layer)
 
     #topRight
     ptr = [[x/2, hg], [x/2, y/2], [hg + offCenter[0], y/2], [hg + offCenter[0], y/2+gap], 
             [x/2+gap, y/2+gap], [x/2+gap, hg],[x/2,hg]]
-    btr = cad.core.Boundary(ptr, layer=layer)
 
     #bottom Left
     pbl = [[-x/2, -hg], [-x/2, -y/2], [-ocb-hg, -y/2], [-ocb-hg, -y/2-gap],
             [-x/2-hg, -y/2-gap], [-x/2-gap, -y/2-gap], [-x/2-gap, -hg], [-x/2, -hg]]
-    bbl = cad.core.Boundary(pbl, layer=layer)
 
     #bottom right
     pbr = [[x/2, -hg], [x/2, -y/2], [ocb+hg, -y/2], [ocb+hg, -y/2-gap],
             [x/2+hg, -y/2-gap], [x/2+gap, -y/2-gap], [x/2+gap, -hg], [x/2, -hg]]
-    bbr = cad.core.Boundary(pbr, layer=layer)
 
     #bottom center
-    bbc = cad.shapes.Rectangle((-ocb+hg, -y/2-gap),(ocb-hg, -y/2), layer=layer)
-
-    BC.add([btl, btr, bbl, bbr, bbc])
+    for layer in layers:
+        btl = cad.core.Boundary(ptl, layer=layer)
+        btr = cad.core.Boundary(ptr, layer=layer)
+        bbl = cad.core.Boundary(pbl, layer=layer)
+        bbr = cad.core.Boundary(pbr, layer=layer)
+        bbc = cad.shapes.Rectangle((-ocb+hg, -y/2-gap),(ocb-hg, -y/2), layer=layer)
+        BC.add([btl, btr, bbl, bbr, bbc])
 
     return BC
 
 
 
-def MMPXEdge(coords, vias=True, layer=1, rot=0):
+def MMPXEdge(coords, vias=True, layers=[0,1], rot=0, connectorShape=True):
     '''
     MMPX Edge Connector
     '''
@@ -1994,8 +1993,17 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
     PXCell = cad.core.Cell('MMPX')
 
     x, y = defaults['MMPXEdge']
-    r = cad.shapes.Rectangle((-x/2,-y/2),(x/2,y/2), layer=layer)
-    PXCell.add(r)
+    extrax = (defaults['MMPXTopWidth'] - x)/2
+    
+    for l in layers:
+        r = cad.shapes.Rectangle((-x/2,-y/2),(x/2,y/2), layer=l)
+        PXCell.add(r)
+
+    if connectorShape:
+        cc = mmpxConnect()
+        cc.translate((0, -y/2))
+        PXCell.add(cc)
+
 
     if not vias:
         #translate, rotate
@@ -2011,20 +2019,28 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
         #vertical part
         x1 = -x/2 - vhD
         ylocs = np.arange(-y/2-vhD,y/2,ivD)
-        for y in ylocs:
-            viaLocs.append([x1,y])
-            viaLocs.append([-x1,y])
-            v1, v2 = Via((x1,y)), Via((-x1,y))
+        for ys in ylocs:
+            viaLocs.append([x1,ys])
+            viaLocs.append([-x1,ys])
+            v1, v2 = Via((x1,ys)), Via((-x1,ys))
             PXCell.add([v1,v2])
         #horizontal part
         y1 = ylocs[0]
         xlocs1 = np.arange(-x/2-vhD+ivD, -b1-vhD-ivD, ivD)
         xlocs2 = np.arange(x/2+vhD-ivD, b1+vhD+ivD, -ivD)
         xlocs = np.hstack((xlocs1,xlocs2))
-        for x in xlocs:
-            viaLocs.append([x,y1])
-            v1 = Via([x,y1])
+        for xs in xlocs:
+            viaLocs.append([xs,y1])
+            v1 = Via([xs,y1])
             PXCell.add(v1)
+
+        if connectorShape:
+            wideWidth = 1200*um #also set in mmpxConnect below
+            locs = [wideWidth/2+vhD, -y/2-vhD]
+            viaLocs.extend([[-locs[0],locs[1]],[locs[0],locs[1]]])
+            v1 = Via(locs)
+            v2 = Via([-locs[0], locs[1]])
+            PXCell.add([v1, v2])
 
 
         #translate, rotate
@@ -2032,6 +2048,47 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
         PXCellr = cad.core.CellReference(PXCell, rotation=rot)
         PXCellr.translate(coords)
         return PXCellr, viaLocsR
+
+def mmpxConnect():
+    '''
+    Design by Einar Magnusson
+    zeropoint is at the bottom center
+    '''
+
+    MC = cad.core.Cell('MMPXCONNECT')
+
+    pcCenter = defaults['PCBcenter']
+    pcGap = defaults['PCBgap']
+    ml = defaults['MMPXConnectLen']
+    
+    preGap = 100*um
+    wideStart = 330*um
+    wideWidth = 1200*um
+    wideLen = 360*um
+    xtraWidth = 609*um
+    tapLen = 310*um
+
+    if wideLen+wideStart+tapLen != ml:
+        raise Exception, 'the settings in maskDesign.mmpxConnect are not commensurate with the MMPXConnectLen default setting defined in defaultParms and used in PCBClass.EdgeMMMPX'
+
+    points = [[-xtraWidth/2,0],[-xtraWidth/2, wideStart],[-wideWidth/2, wideStart],
+            [-wideWidth/2, wideStart+wideLen], [-pcGap/2, wideStart+wideLen+tapLen],
+            [-pcCenter/2, wideStart+wideLen+tapLen],[-pcCenter/2, preGap],
+            [pcCenter/2, preGap],
+            [pcCenter/2, wideStart+wideLen+tapLen],[pcGap/2, wideStart+wideLen+tapLen],
+            [wideWidth/2, wideStart+wideLen],[wideWidth/2, wideStart], [xtraWidth/2,wideStart],
+            [xtraWidth/2, 0], [-xtraWidth/2, 0]]
+
+    bound = cad.core.Boundary(points)
+    MC.add(bound)
+
+
+    MCr = cad.core.CellReference(MC, rotation=180)
+    return MCr
+
+
+
+
 
 def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0, endrot=0):
     '''

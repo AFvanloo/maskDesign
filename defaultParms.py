@@ -81,6 +81,8 @@ def dPars():
             'labelFontSize'         : 360*um,   # take ~.9*labelSpace
             'labelSpace'            : 400*um,   #space for labels on mostly black chips
             'MMPXEdge'              : (3.5*mm, 5.2*mm),     # side MMPX dimensions
+            'MMPXTopWidth'          : 4.5*mm,
+            'MMPXConnectLen'        : 1000*um,
             'PCBcenter'             : .382*mm,                #parameters for PCB CPWs
             'PCBgap'                : .58*mm,
             'PCBChipMargin'         : .5*mm,    #total maring: half of this is added to each side
