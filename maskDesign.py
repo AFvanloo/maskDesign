@@ -2193,6 +2193,20 @@ def Via(coords, viaDiam=None, layer=2):
 
     return VCr
 
+def screwHole(coords, diameter, layer = 2):
+    '''
+    Adds a hole for screwing the PCB to the sample holder at layer 1
+    '''
+
+    SC = cad.core.Cell('SCREWHOLE')
+    h = cad.shapes.Disk((0,0), diameter/2, layer=layer)
+    SC.add(h)
+
+    SCr = cad.core.CellReference(SC, origin=coords)
+
+    return SCr
+
+
 def arcVias(initAngle, degrees, radius, center, gap):
     '''
     Draws vias along an arc, returns the Cell and the locations

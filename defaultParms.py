@@ -86,6 +86,7 @@ def dPars():
             'PCBcenter'             : .382*mm,                #parameters for PCB CPWs
             'PCBgap'                : .58*mm,
             'PCBChipMargin'         : .5*mm,    #total maring: half of this is added to each side
+            'PCBScrewHole'          : 2*mm,
             'PCBrbend'              : 1*mm,     #minimum bend radius
             'viaDiameter'           : .5*mm,                 
             'interviaDistance'      : 1*mm,

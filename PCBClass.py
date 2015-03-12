@@ -3,6 +3,7 @@ import numpy as np
 import defaultParms as dpars
 import maskDesign as md
 import sys
+from matplotlib import pyplot as plt
 
 
 print 'loading PCBClass'
@@ -51,6 +52,7 @@ class PCB:
         self.mmpxLoc = []
 
         self.viaPositions = []
+        self.screwPositions = []
         self.PCBOffCenter = PCBOffCenter
 
         
@@ -60,6 +62,7 @@ class PCB:
         self.vias = 0
         self.chips = 0
         self.arcs = 0
+        self.screwHoles = 0
         
         #Initialize
         self.initPCB()
@@ -108,6 +111,18 @@ class PCB:
 
         self.chips += 1
         setattr(self, 'Chip'+str(self.chips), Chip(self, self.chipLocation, vias=vias))
+
+
+    def addScrewHole(self, coords):
+        '''
+        Adds a screw hole
+        '''
+
+        print 'adding a screw hole'
+
+        self.screwHoles += 1
+        self.screwPositions.append(coords)
+        setattr(self, 'Screw'+str(self.screwHoles), ScrewHole(self, coords))
 
 
     def addEdgeMMPXs(self):
@@ -361,6 +376,7 @@ class PCB:
         ivD = defaults['interviaDistance']
         rvD = defaults['randomViaDistance']
         ihD = defaults['viaHorizDistance']
+        sd = defaults['PCBScrewHole']
         x, y = coords
         chipSize = self.chipSize
 
@@ -390,6 +406,11 @@ class PCB:
             if np.sqrt(np.power((x-vx),2)+np.power((y-vy),2)) < 2*ihD:
                 return True
 
+        #check for other screwHolesvias:
+        for i in range(len(self.screwPositions)):
+            sx, sy = self.screwPositions[i]
+            if np.sqrt(np.power((x-sx),2)+np.power((y-sy),2)) < sd/2+ihD:
+                return True
         return False
 
 
@@ -470,6 +491,19 @@ class Chip:
         else:
             self.Cell = md.chip(self.coords, self.totChipSize, vias=self.vias, rot=self.rot)
         PCBX.topCell.add(self.Cell)
+
+
+class ScrewHole:
+
+    def __init__(self, PCBX, placeInfo):
+
+        #properties
+        self.coords = placeInfo#
+        self.diameter = defaults['PCBScrewHole']
+
+        self.Cell = md.screwHole(self.coords, self.diameter)
+        PCBX.topCell.add(self.Cell)
+
 
 
 class EdgeMMPX:
@@ -649,10 +683,13 @@ def splitLayer(cell, layer):
     c1, c2 = cad.utils.split_layers(cell, [layer])
     return c2
 
+def showLayers(cell, layers=[0,1,2]):
+    for l in range(len(layers)):
+        lc = splitLayer(cell, layers[l])
+        lc.show()
 
 
-
-def makeDrillFile(viaLocations, fname = './PCBsGen1/drillFile.dlr'):
+def makeDrillFile(PCB, PCBSize, viaLocations, screwLocations, fname = './PCBsGen1/drillFile.dlr'):
     '''
     make a drill file
     '''
@@ -661,16 +698,32 @@ def makeDrillFile(viaLocations, fname = './PCBsGen1/drillFile.dlr'):
     f = open(fname, 'w')
 
     f.write('M48\n') #This is where the header starts
-    f.write('METRIC,LZ')
+    f.write('METRIC,LZ\n')
 
     #tool size
     vd = defaults['viaDiameter']
-    f.write('T001')#TODO VIA HOLES
-    f.write('T002') #TODO SCREW HOLES
+    sh = defaults['PCBScrewHole']
+    f.write('T01C%1.4f\n' % vd)#TODO VIA HOLES
+    f.write('T02C%1.4f\n' % sh) #TODO SCREW HOLES
     f.write('%\n') #start pattern
 
-    
-    
+    #shift via positions by board size
+
+    #main body: vias
+    f.write('T01\n')
+    viaLocations = (np.array(viaLocations) + np.array(PCBSize)/2)*1e3
+    viaLocations = viaLocations.tolist()
+    for v in viaLocations:
+        x, y = v
+        xs = 'X0%i' % np.round(x)
+        ys = 'Y0%i' % np.round(y)
+        f.write(xs+ys+'\n')
+        
+    #main body: Screw holes
+    f.write('T02\n')
+    #add half board size like above
+
+
     #end 
     f.write('T00')  #is this necessary?
     f.write('M30')  #Ending statement'
