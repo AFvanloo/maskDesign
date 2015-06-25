@@ -1,7 +1,7 @@
 import gdsCAD as cad
 import matplotlib as mpl
 import numpy as np
-import defaultParms as dp
+import defaultParmsOx as dp
 
 defaults = dp.dPars()
 
