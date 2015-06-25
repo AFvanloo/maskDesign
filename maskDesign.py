@@ -1,9 +1,11 @@
 import gdsCAD as cad
 import matplotlib as mpl
 import numpy as np
-import defaultParmsOx as dp
+import defaultParms as dp
+
 
 defaults = dp.dPars()
+dLists = dp.dLists()
 
 #Separate file for sizes etc?
 
@@ -19,6 +21,7 @@ print 'loading maskDesign'
 
 um = 1e3
 mm = 1e6
+inch = 25.4*mm
 a1, b1 = defaults['centerConductor'], defaults['CPWGap'] 
 
 cad.core.default_layer = 0
@@ -56,7 +59,7 @@ def border(xlen,ylen,gap, layer=0):
 
     return boxCell 
 
-def borderA(xlen,ylen,gap, alignPos):
+def borderA(xlen,ylen,gap, alignPos, layer=0):
     '''
     Makes a border for a chip, with a width of gap/2,
     Inlcudes Alignment Markers
@@ -65,16 +68,12 @@ def borderA(xlen,ylen,gap, alignPos):
     print 'generating borders'
 
     boxCell = cad.core.Cell('BORDER')
-    boundbox = border(xlen,ylen,gap)
+    boundbox = border(xlen,ylen,gap, layer=layer)
     boxCell.add(boundbox)
 
     #Alignment marks
     dis = defaults['alignDistance']   #distance from markers to edge
-    alignCell = cad.core.Cell('ALIGN')
 
-    #alignArray = cad.core.CellArray(Align, 2, 2, (xlen - 2*dis, ylen - 2*dis))
-    #alignCell.add(alignArray)
-    
     if 0 in alignPos:    
         Align0 = alignMarks((-xlen/2+dis, ylen/2-dis))
         boxCell.add(Align0)
@@ -86,30 +85,58 @@ def borderA(xlen,ylen,gap, alignPos):
         boxCell.add(Align2)
     if 3 in alignPos:
         Align3 = alignMarks((-xlen/2.+dis,-ylen/2.+dis))
-        alignCell.add(Align3)
-    
-    boxCell.add(alignCell)
- 
+        boxCell.add(Align3)
+
     return boxCell 
+
+def cornerL(coords, leng=500*um, thick=100*um, rot=0):
+    '''
+    L-shape to put into the corner of the chip for aligning
+    '''
+
+    print 'adding alignment L'
+
+    LCell = cad.core.Cell('L')
+    hl = leng/2
+
+    #draw the shape
+    lShape = [[-hl,hl],[hl,hl],[hl,-hl],[hl-thick,-hl],
+            [hl-thick, hl-thick],[-hl,hl-thick],[-hl,hl]]
+    lbound = cad.core.Boundary(lShape)
+    LCell.add(lbound)
+
+    LCellr = cad.core.CellReference(LCell,rotation=rot)
+    LCellr.translate(coords)
+
+    return LCellr
 
 
 def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
         bridges=False, bridgeDistance= defaults['ABdistance'], 
-        bridgeStart=defaults[ 'ABstart'], bridgeEnd=defaults[ 'ABend'], rot=0):
+        bridgeStart=defaults[ 'ABstart'], bridgeEnd=defaults[ 'ABend'], vias=False, viaDiam = None,
+        interviaDistance=None, viaHorizDistance=None, rot=0):
     '''
     A straight piece of co-planar waveguide
     center = the width of the center conductor
     gap = the width of the cut in the ground plane in which the center conductor is placed
     rot = rotation in degrees
 
-    returns a cell
+    if via is set to true, the via distance will be slightly changed from the default value in order to 
+    ensure that vias are placed at close to the ends
+
+    returns a cell, and if vias=True, a list of via locations
     '''
     #defaults for AB here until I find out how to make it properly
         
     if bridgeDistance == None: bridgeDistance = defaults['ABdistance']
     if bridgeStart == None: bridgeStart =defaults[ 'ABstart']
     if bridgeEnd == None: bridgeEnd = defaults[ 'ABend']
-
+    
+    #via properties
+    if viaDiam == None: viaDiam = defaults['viaDiameter']
+    if interviaDistance == None: interviaDistance = defaults['interviaDistance']
+    if viaHorizDistance == None: viaHorizDistance = defaults['viaHorizDistance']
+    
     cpwCell = cad.core.Cell('CPW')
     startx, starty = coords
 
@@ -158,14 +185,44 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
         #add to main cell
         cpwCell.add(bridgeCell)
 
-    cpwCellr = cad.core.CellReference(cpwCell,rotation=rot)
-    cpwCellr.translate(coords)
+    if not vias:
+        cpwCellr = cad.core.CellReference(cpwCell,rotation=rot)
+        cpwCellr.translate(coords)
+        return cpwCellr
 
-    return cpwCellr
+    else:
+        print 'fault is in CPW somewhere'
+        #Cell for vias
+        pb1 = defaults['PCBgap']
+        viaCell = cad.core.Cell('VIA')
+        xloc = interviaDistance/2.
+        y = pb1/2+viaHorizDistance
+        viaLocs = []
+
+        #generate locations:
+        nums = np.round(leng/(2*xloc))
+        dis = (leng-2*xloc)/(nums-1)
+        xlocs = np.arange(-leng/2+xloc,leng/2-xloc+1 ,dis)
+        for x in xlocs:
+            viaLocs.append([x,y])
+            v1 = Via(viaLocs[-1], viaDiam)
+            viaLocs.append([x,-y])
+            v2= Via(viaLocs[-1], viaDiam)
+            cpwCell.add([v1, v2])
+
+        #rotate and translate vias
+        viaLocsE = transRotVias(viaLocs, trans=coords, rot=rot)
+
+        #rotate and translate Cell
+        cpwCellr = cad.core.CellReference(cpwCell, rotation=rot)
+        cpwCellr.translate(coords)
+
+        return cpwCellr, viaLocsE
+
 
 
 def CPWArc(coords,initangle=270,degrees=90,
-        radius=100.*um,center=10.*um,gap=19.*um,rot=0.):
+        radius=100.*um,center=10.*um,gap=19.*um, vias=False, rot=0.):
     '''
     draw a CPW arc of pirad * pi radians.
     Radius, centerconductor widht and gap width are input arguments
@@ -185,10 +242,36 @@ def CPWArc(coords,initangle=270,degrees=90,
     arcCell.add([discinner,discouter])
 
     #rotate
-    arcCellr = cad.core.CellReference(arcCell,rotation=rot)
-    arcCellr.translate(coords)
+    if not vias:
+        arcCellr = cad.core.CellReference(arcCell,rotation=rot)
+        arcCellr.translate(coords)
+        return arcCellr
 
-    return arcCellr
+    else:
+        #cal len of arc
+        viaCell, posList  = arcVias(initangle, degrees, radius, center, gap)
+        arcCell.add(viaCell)
+
+        #rotate, translate
+        posListR = transRotVias(posList, trans=coords, rot=rot)
+        arcCellr = cad.core.CellReference(arcCell,rotation=rot)
+        arcCellr.translate(coords)
+        
+        return arcCellr, posListR
+
+
+def circBoundary(coords, radius, init_angle=0, final_angle=360, nopoints=199):
+    '''
+    make a boundary of circular shape
+    Note that 199 is the maximum number of points permissable by GDS
+    Also note that when defining boundaries, the order matters: make sure you
+    draw your circle in the right direction
+    '''
+    dphi = float(final_angle-init_angle)/(nopoints-1)
+    angles = np.arange(init_angle, final_angle+dphi, dphi)
+    x,y = coords
+
+    return [[x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))] for phi in angles]
 
 
 def taper(coords,taperlen, startOuter, endOuter,
@@ -228,30 +311,33 @@ def taper(coords,taperlen, startOuter, endOuter,
     return taperCellr
 
 
-def launcher(coords,startcenterwidth=150*um,startgrwidth=150*1.9*um,
+def launcher(coords,startCenterWidth=None,startGapWidth=None,
         startlength=250.*um,taperlength=250.*um, center=10.*um, gap=19.*um, rot=0.):
     '''
     draw a launcher:
     '''
     
+    if startCenterWidth==None: startCenterWidth=defaults['launcherWidth']
+    if startGapWidth==None: startGapWidth = (gap/center)*startCenterWidth
+
     #init
     launcherCell = cad.core.Cell('LAUNCHER')
     startx, starty = coords
 
     #define points
-    gapuppoints = [(0,startgrwidth/2.),
-            (startlength,startgrwidth/2.),
+    gapuppoints = [(0,startGapWidth/2.),
+            (startlength,startGapWidth/2.),
             (taperlength+startlength,gap/2.),
             (taperlength+startlength,center/2.),
-            (startlength,startcenterwidth/2.),
-            (0,startcenterwidth/2.)]
+            (startlength,startCenterWidth/2.),
+            (0,startCenterWidth/2.)]
 
-    gapdownpoints = [(0,-startgrwidth/2.),
-            (startlength,-startgrwidth/2.),
+    gapdownpoints = [(0,-startGapWidth/2.),
+            (startlength,-startGapWidth/2.),
             (taperlength+startlength,-gap/2.),
             (taperlength+startlength,-center/2.),
-            (startlength,-startcenterwidth/2.),
-            (0,-startcenterwidth/2.)]
+            (startlength,-startCenterWidth/2.),
+            (0,-startCenterWidth/2.)]
 
     #draw the boundaries
     bdup = cad.core.Boundary(gapuppoints)
@@ -665,7 +751,7 @@ def airBridge(coords,footerLen=30*um,bridgeSizeX=40*um,bridgeSizeY=10*um,
     return bridgeCellr
 
 
-def chipText(coords, text, fontsize=100*um, font='romand', layer=25,rot=0):
+def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
     '''
     Generate text
     '''
@@ -676,9 +762,7 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=25,rot=0):
         texts = cad.shapes.Label(text,fontsize,coords,layer=layer)
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
-        texts.add_text(text,font)
-
-    textCell.add(texts)
+        texts.add_text(text,font.add(texts))
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -686,47 +770,72 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=25,rot=0):
 
     return textCellr
 
+def chipSides(x,y):
+    '''
+    Makes the left and right side of the chip, with a maskLabel space on the right bottom,
+    a chip label space on the left top, and L-shaped marks for alignment elsewhere
+    '''
+
+    sideCell = cad.core.Cell('SIDES')
+
+    white = defaults['labelSpace']
+    lthick = defaults['LAlignThick']
+
+    r1 = cad.shapes.Rectangle([-x/2, -y/2+white],[-x/2+white, y/2-white])
+    r2 = cad.shapes.Rectangle([x/2-white, -y/2+white],[x/2, y/2-white])
+    r3 = cad.shapes.Rectangle([-x/2+lthick, -y/2+lthick], [-x/2+white, -y/2+white])
+    r4 = cad.shapes.Rectangle([x/2-lthick, y/2-lthick], [x/2-white, y/2-white])
+    sideCell.add([r1,r2,r3,r4])
+
+    return sideCell
+
 
 #=================COMBINED FUNCTIONS=============================
 
-def doubleArc(coords, dy, rbend = 100*um, rot=0):
+def doubleArc(coords, dy, rbend = 100*um, center=a1, gap=b1, vias=False, rot=0):
 
     dACell = cad.core.Cell('DOUBLEARC')
 
-    #defaults
-    center = defaults['centerConductor']
-    gap = defaults['CPWGap']
-    
     #Calculate angle
     phirad = np.arccos(1-abs(dy)/(rbend*2))
-    print 'phirad is ', phirad
     phi = phirad*360/2/np.pi    #convert to degrees
 
     #start and end coords:
     startc = (-rbend*np.sin(phirad), rbend-abs(dy)/2)
     endc = (rbend*np.sin(phirad), -rbend+abs(dy)/2)
-    xspan = endc[1]*2
+    xspan = endc[0]*2
 
     #draw Arcs
     if dy>=0:
-        arc1Cell = CPWArc(startc, 270, phi, rbend, center, gap)
-        arc2Cell = CPWArc(endc, 90, phi, rbend, center, gap)
+        arc1Cell = CPWArc(startc, 270, phi, rbend, center, gap, vias=vias)
+        arc2Cell = CPWArc(endc, 90, phi, rbend, center, gap, vias=vias)
     else:
-        print 'less than zero'
-        arc1Cell = CPWArc((startc[0], -startc[1]), 90, -phi, rbend, center, gap)
-        arc2Cell = CPWArc((endc[0], -endc[1]), 270, -phi, rbend, center, gap)
+        arc1Cell = CPWArc((startc[0], -startc[1]), 90, -phi, rbend, center, gap, vias=vias)
+        arc2Cell = CPWArc((endc[0], -endc[1]), 270, -phi, rbend, center, gap, vias=vias)
+
+    if vias:
+        arc1Cell, pos1 = arc1Cell
+        print 'pos1 is ', pos1
+        arc2Cell, pos2 = arc2Cell
+        print 'pos2 is ', pos2
+        viaLocs = pos1
+        viaLocs.extend(pos2)
+        viaLocs = transRotVias(viaLocs, trans=coords, rot=rot)
 
     dACell.add([arc1Cell, arc2Cell])
     
     #translate, rotate, reflect
     dACellr = cad.core.CellReference(dACell, rotation=rot)
     dACellr.translate(coords)
-
-    return dACellr, xspan
+    
+    if vias:
+        return dACellr, xspan, viaLocs
+    else:
+        return dACellr, xspan
 
 
 def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
-        bridges=False, rot=0):
+        bridges=False, center=a1, gap=b1, rot=0):
     '''
     Makes a CPW line with connected arcs of total yspan as indicated
     If exit and enter are True, a quarter circle bend is generated at the end
@@ -743,18 +852,18 @@ def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
     #Arcs
     if enter:
         if reflect:
-            enArc = CPWArc((-rbend,yspan/2.-rbend), initangle = 0., radius=rbend)
+            enArc = CPWArc((-rbend,yspan/2.-rbend), initangle = 0., radius=rbend, center=center, gap=gap)
         else:
-            enArc = CPWArc((-rbend,-yspan/2.+rbend),radius=rbend)
+            enArc = CPWArc((-rbend,-yspan/2.+rbend),radius=rbend, center=center, gap=gap)
         vstart += rbend/2.
         vlen -= rbend
         sLineCell.add(enArc)
 
     if exit:
         if reflect:
-            exArc = CPWArc((rbend,-yspan/2.+rbend),initangle =180., radius=rbend)
+            exArc = CPWArc((rbend,-yspan/2.+rbend),initangle =180., radius=rbend, center=center, gap=gap)
         else:
-            exArc = CPWArc((rbend,yspan/2.-rbend),initangle =90., radius=rbend)
+            exArc = CPWArc((rbend,yspan/2.-rbend),initangle =90., radius=rbend, center=center, gap=gap)
         vlen -= rbend
         vstart -= rbend/2.
         sLineCell.add(exArc)
@@ -762,9 +871,9 @@ def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
     
     #straight piece
     if reflect:
-        vPiece = CPW((0,vstart),vlen, bridges = bridges, rot=90.)
+        vPiece = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, rot=90.)
     else:
-        vPiece = CPW((0,vstart),vlen, bridges = bridges, rot=90.)
+        vPiece = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, rot=90.)
     #add to cell
     sLineCell.add(vPiece)
    
@@ -857,22 +966,22 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     wiggleCell = cad.core.Cell('WIGGLE')
 
     #left part of straight
-    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA)
-    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB)
+    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA, center=center, gap=gap)
+    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB, center=center, gap=gap)
     wiggleCell.add([leftLine,rightLine])
     totlenc += straightx
 
     #enter and exit arc
-    enArc = sLine((-xspan/2.+straightx/2.+xOffset+rbend,-skew/2+yspan/2.+yOffset/2.),yspan+yOffset+skew)
+    enArc = sLine((-xspan/2.+straightx/2.+xOffset+rbend,-skew/2+yspan/2.+yOffset/2.),yspan+yOffset+skew, center=center, gap=gap)
 
     totlenc += np.pi*rbend+yspan + skew-2.*rbend+yOffset
     if nwiggle%2==0:
         exArc = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2*rbend+rbend,
-            -yspan/2.+yOffset/2.+skew/2.),yspan-yOffset + skew)
+            -yspan/2.+yOffset/2.+skew/2.),yspan-yOffset + skew, center=center, gap=gap)
         totlenc += np.pi*rbend +yspan + skew-2*rbend-yOffset
     else:
         exArc = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2.*rbend+rbend,
-            yspan/2.+yOffset/2.+skew/2.), yspan+yOffset-skew,reflect=True)
+            yspan/2.+yOffset/2.+skew/2.), yspan+yOffset-skew, center=center, gap=gap, reflect=True)
         totlenc += np.pi*rbend + yspan - skew + yOffset - 2.*rbend
     wiggleCell.add([enArc,exArc])
     
@@ -880,10 +989,10 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     for i in range(nwiggle-1):
         if i%2==1:
             wiggle = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
-                yOffset),2.*yspan)
+                yOffset),2.*yspan, center=center, gap=gap)
         else:
             wiggle = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
-                yOffset),2.*yspan,reflect=True)
+                yOffset),2.*yspan,center=center, gap=gap, reflect=True)
         wiggleCell.add([wiggle])
         totlenc += 2*(yspan-rbend)+np.pi*rbend
 
@@ -897,7 +1006,7 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     
     return wiggleCellr, yspan
 
-def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
+def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0, PCB=False):
     '''
     route a CPW from point (0,0) to (dx, dy)
     This function assumes dy to be positive. If you need negative dy, use rotate
@@ -910,9 +1019,14 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
     routeCell = cad.core.Cell('ROUTE')
 
     #default values
-    center = defaults['centerConductor']
-    gap = defaults['CPWGap']
-    rbend = defaults['minimumRadius']
+    if PCB:
+        rbend = min(dx, dy)/2
+        gap = defaults['PCBgap']
+        center = defaults['PCBcenter']
+    else:
+        gap = defaults['CPWGap']
+        center = defaults['centerConductor']
+        rbend = defaults['minimumRadius']
 
     #calculate yspan of bend if dx < 2*rbend
     if abs(dx) < 2*rbend:
@@ -921,19 +1035,19 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
 
     #check in which direction to bend
     if dx >= 2*rbend: 
-        sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=True, rot=90)
-        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
+        sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=bridges, rot=90)
+        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
     elif dx <= -2*rbend and dx!=0:
-        sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=True, rot=90)
-        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=True, rot=90)
+        sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=bridges, rot=90)
+        cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
     elif 0 < dx <= 2*rbend:
         sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
     elif -2*rbend < dx < 0:
         sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
     elif dx == 0:
-        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=True, rot=90)
+        cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
     if dx==0:
         routeCell.add([cCell])
     else:
@@ -941,15 +1055,15 @@ def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0):
 
     #Take care of the endrot
     if endrot == 'r':
-        arcCell = CPWArc((dx+rbend, dy), 90, 90)
+        arcCell = CPWArc((dx+rbend, dy), 90, 90, gap=gap, center=center)
         routeCell.add(arcCell)
     elif endrot == 'l':
-        arcCell = CPWArc((dx-rbend, dy), 0, 90)
+        arcCell = CPWArc((dx-rbend, dy), 0, 90, gap=gap, center=center)
         routeCell.add(arcCell)
 
     #rotate and translate
     routeCellr = cad.core.CellReference(routeCell, rotation = rot)
-    routeCellr.translate(coords)
+    routeCellr.translate(coords[:2])
 
     return routeCellr
 
@@ -1400,11 +1514,11 @@ def lumpedParamp(coords, islandX=300*um, finger1Thick=100*um, finger2Thick=50*um
 
 
 def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25,
-        xtraX = 200*um, xtraY=200*um, rot=0):
+        xtraLeft = 200*um, xtraRight=200*um, xtraTop=200*um, xtraBottom=200*um, rot=0):
 
-    if nFingers%2 == 0:
-        print 'currently, nFingers should be odd, adding one'
-        nFingers += 1
+    #if nFingers%2 == 0:
+    #    print 'currently, nFingers should be odd, adding one'
+    #    nFingers += 1
 
     Acell = cad.core.Cell('ANTENNA')
 
@@ -1422,8 +1536,9 @@ def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25
     cutl = fingerInside([lowerx[0],0],iR,oR,fingerDis, ystraight, sides = 'r')
     cutr = fingerInside([lowerx[-1],0],iR,oR,fingerDis, ystraight, sides = 'l')
     Acell.add([cutl,cutr])
-#upper half
-    
+
+
+    #upper half
     upperx = np.arange(-nFingers+2, nFingers-1,2)
     upperx = upperx*fingerDis #+ fingerDis
     for x in upperx:
@@ -1433,28 +1548,27 @@ def antenna(coords,fingerThick=10*um, ySize=1*mm, fingerDis = 50*um, nFingers=25
 
 
     #Upper Boundary
-    bound = [[-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, -ySize/2-xtraY],
-            [-(nFingers-.5)*fingerDis-fingerThick/2, -ySize/2-xtraY],
+    bound = [[-(nFingers-.5)*fingerDis-fingerThick/2-xtraLeft, -ySize/2-xtraBottom],
+            [-(nFingers-.5)*fingerDis-fingerThick/2, -ySize/2-xtraBottom],
             [-(nFingers-.5)*fingerDis-fingerThick/2, ystraight]]
     bound += circBoundary([-(nFingers-1)*fingerDis,ystraight],oR, init_angle=180,
             final_angle=90)
-    bound += [[-nFingers*fingerDis,ySize/2],[nFingers*fingerDis*2,ySize/2]]
+    bound += [[-(nFingers-.5)*fingerDis-fingerThick/2+oR,ySize/2],
+            [(nFingers-.5)*fingerDis+fingerThick/2-oR,ySize/2]]
     bound += circBoundary([(nFingers-1)*fingerDis,ystraight],oR, init_angle=90,
             final_angle=0)
-    bound += [[(nFingers-.5)*fingerDis+fingerThick/2, -ySize/2-xtraY],
-              [(nFingers-.5)*fingerDis+fingerThick/2+xtraX, -ySize/2-xtraY],
-              [(nFingers-.5)*fingerDis+fingerThick/2+xtraX, ySize/2+xtraY],
-              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, ySize/2+xtraY],
-              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraX, -ySize/2-xtraY]]
+    bound += [[(nFingers-.5)*fingerDis+fingerThick/2, -ySize/2-xtraBottom],
+              [(nFingers-.5)*fingerDis+fingerThick/2+xtraRight, -ySize/2-xtraBottom],
+              [(nFingers-.5)*fingerDis+fingerThick/2+xtraRight, ySize/2+xtraTop],
+              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraLeft, ySize/2+xtraTop],
+              [-(nFingers-.5)*fingerDis-fingerThick/2-xtraLeft, -ySize/2-xtraBottom]]
     bdy = cad.core.Boundary(bound)
     Acell.add(bdy)
     
     #lower boundary
     r = cad.shapes.Rectangle((-(nFingers-.5)*fingerDis+fingerThick/2,-ySize/2),
-            ((nFingers-.5)*fingerDis-fingerThick/2,-ySize/2-xtraY))
+            ((nFingers-.5)*fingerDis-fingerThick/2,-ySize/2-xtraBottom))
     Acell.add(r)
-
-
 
     #flatten, rotate, translate
     Acellr = cad.core.CellReference(Acell, rotation=rot)
@@ -1471,6 +1585,7 @@ def fingerInside(coords, iR, oR, fingerDis, ystraight, rot=0, sides='lr'):
     FICell  = cad.core.Cell('FI')
 
     #lower left
+    thick = oR-iR
     points = []
     if sides.count('l')>=1:
         points+= circBoundary([-fingerDis,-ystraight], oR, init_angle=270,
@@ -1478,7 +1593,7 @@ def fingerInside(coords, iR, oR, fingerDis, ystraight, rot=0, sides='lr'):
         points += [[-iR,-ystraight],[-iR, ystraight]]
     else:
         points += [[-iR, -ystraight-oR],[-iR, ystraight]]
-    points += circBoundary([0,ystraight], iR)
+    points += circBoundary([0,ystraight], iR, final_angle=180)
     if sides.count('r')>=1:
         points += [[iR,ystraight],[iR, -ystraight]]
         points += circBoundary([fingerDis, -ystraight], oR, init_angle=180,
@@ -1527,13 +1642,222 @@ def thinTenna(coords, totLen, thinLen, thin=2*um, tapLen=100*um, preLen=0,
 
 
 
+#
+#def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
+#    '''
+#    make a boundary of circular shape
+#
+#    Note that 199 is the maximum number of points permissable by GDS
+#
+#    Also note that when defining boundaries, the order matters: make sure you
+#    draw your circle in the right direction
+#    '''
+#    dphi = float(final_angle-init_angle)/(nopoints-1)
+#    angles = np.arange(init_angle, final_angle+dphi, dphi)
+#    x,y = coords
+#
+#    points = []
+#    for phi in angles:
+#        points.append([x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))])
+#
+#    return points
+#
 
-def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
+def wireNoGround(coords, thick, ySize, xtraLeft=.5*mm, xtraRight=.5*mm, launcherX=300*um, launcherY=500*um, rot=0):
+    '''
+    Make a wire while getting rid of the surrounding groundplane
+    '''
+
+    wgCell = cad.core.Cell('NOGROUNDWIRE')
+    
+    left = [[-launcherX/2, -ySize/2],[-xtraLeft, -ySize/2],[-xtraLeft, ySize/2],
+            [-launcherX/2, ySize/2], [-thick/2, ySize/2-launcherY],
+            [-thick/2, -ySize/2 + launcherY], [-launcherX/2, -ySize/2]]
+    leftb = cad.core.Boundary(left)
+    
+    right = [[launcherX/2, -ySize/2],[xtraRight, -ySize/2],[xtraRight, ySize/2],
+            [launcherX/2, ySize/2], [thick/2, ySize/2-launcherY],
+            [thick/2, -ySize/2 + launcherY], [launcherX/2, -ySize/2]]
+    rightb = cad.core.Boundary(right)
+
+    wgCell.add([leftb, rightb])
+
+    #flatten, rotate, translate
+    wgCellr = cad.core.CellReference(wgCell, rotation=rot)
+    wgCellr.translate(coords)
+
+    return wgCellr
+
+#===========================================================================
+#---------------------------PositivePhotoresist-----------------------------
+#===========================================================================
+
+def DCwire(coords, ySize, thick, launcherY=500*um, launcherX=300*um, rot=0):
+    '''
+    Make a wire at coords of width 'thick' with triangular contact of dimensions
+    launcherY, launcherX
+
+    By default, this structure is vertical
+    '''
+
+    DCCell = cad.core.Cell('DCWIRE')
+
+    wireLen = ySize- 2*launcherY
+
+    #create the boundary
+    points = [[-launcherX/2, -ySize/2],[-thick/2, -wireLen/2],
+            [-thick/2,wireLen/2],[-launcherX/2,ySize/2],
+            [launcherX/2, ySize/2], [thick/2, wireLen/2],
+            [thick/2, -wireLen/2], [launcherX/2, -ySize/2],
+            [-launcherX/2, -ySize/2]]
+    bdy = cad.core.Boundary(points)
+
+    #Add to cell
+    DCCell.add(bdy)
+
+    #translate, rotate
+    DCCellr = cad.core.CellReference(DCCell, rotation=rot)
+    DCCellr.translate(coords)
+
+    return DCCellr
+
+
+def antennaP(coords, nFinger, fingerThick, fingerDis, ySize, xtraY=1*mm, launch=True, rot=0):
+    '''
+    Make a positive resist antenna
+    '''
+    
+    #create the cell
+    APCell = cad.core.Cell('ANTENNAP')
+
+    #calculate various positions
+    posX = np.arange(-(nFinger-1.)/2, (nFinger-1.)/2+1)*2*fingerDis
+
+    #create the main antenna
+    #left and right finger
+    fl = posFinger((posX[0],0), fingerThick, fingerDis, ySize, leftBend=False)
+    fr = posFinger((posX[-1],0), fingerThick, fingerDis, ySize, rightBend=False)
+    APCell.add([fl, fr])
+    #rest fingers
+    for pos in posX[1:-1]:
+        f = posFinger((pos,0), fingerThick, fingerDis, ySize)
+        APCell.add(f)
+    
+    #create the extra legs
+    yLim = coords[1]-ySize/2-xtraY
+    xLims = [posX[0]-fingerDis/2, posX[-1]+fingerDis/2]
+    r1 = cad.shapes.Rectangle([xLims[0]-fingerThick/2,yLim+xtraY],[xLims[0]+fingerThick/2,yLim])
+    r2 = cad.shapes.Rectangle([xLims[1]-fingerThick/2,yLim+xtraY],[xLims[1]+fingerThick/2,yLim])
+    APCell.add([r1,r2])
+
+    #add Launchers
+    if launch:
+        #Define launch shape (its a triangle):
+        lX = 300*um
+        lY = 500*um
+        t1 = [[xLims[0]-lX/2,yLim],[xLims[0], yLim+lY],[xLims[0]+lX/2, yLim],[xLims[0]-lX/2,yLim]]
+        t2 = [[xLims[1]-lX/2,yLim],[xLims[1], yLim+lY],[xLims[1]+lX/2, yLim],[xLims[1]-lX/2,yLim]]
+        tr1 = cad.core.Boundary(t1)
+        tr2 = cad.core.Boundary(t2)
+        APCell.add([tr1,tr2])
+
+    #translate, rotate
+    APCellr = cad.core.CellReference(APCell)
+    APCellr.translate(coords)
+
+    return APCellr
+
+  
+
+def posFinger(coords, fingerThick, fingerDis, ySize, leftBend=True, rightBend=True):
+
+    fCell = cad.core.Cell('FINGER')
+    
+    #parametrize
+    ir = fingerDis/2 - fingerThick/2
+    our = fingerDis/2 + fingerThick/2
+    straightY = ySize - 2*our
+    
+    #x=0 is at the top, in the center of the disc
+    upperdisc = cad.shapes.Disk((0,straightY/2),our, inner_radius=ir, final_angle=180)
+    fCell.add(upperdisc)
+
+    #left part
+    if leftBend:
+        r = cad.shapes.Rectangle((-our,-straightY/2),(-ir, straightY/2))
+        d = cad.shapes.Disk((-fingerDis, -straightY/2),our, inner_radius=ir, initial_angle=270, final_angle=360)
+        fCell.add([r,d])
+    else:
+        r = cad.shapes.Rectangle((-our,-ySize/2),(-ir, straightY/2))
+        fCell.add(r)
+
+    #right part
+    if rightBend:
+        r = cad.shapes.Rectangle((our,-straightY/2),(ir, straightY/2))
+        d = cad.shapes.Disk((fingerDis, -straightY/2),our, inner_radius=ir, initial_angle=180, final_angle=270)
+        fCell.add([r,d])
+    else:
+        r = cad.shapes.Rectangle((our,-ySize/2),(ir, straightY/2))
+        fCell.add(r)
+
+    #translate, rotate
+    fCellr = cad.core.CellReference(fCell)
+    fCellr.translate(coords)
+
+    return fCellr
+
+#=========================================================================
+#-----------------------------WAFER---------------------------------------
+#=========================================================================
+
+
+def wafer(size=1.5*inch, edge=0*mm, dphi=35, extraLayer=False):
+    '''
+    draw a wafer
+    '''
+
+    WC = cad.core.Cell('WAFER')
+
+    size = size-edge
+
+    r1 = border(5*inch, 5*inch, 1*mm)
+
+    c1 = cad.shapes.Disk((0,0), size, inner_radius=size-.4*mm)
+    c2 = cad.shapes.Disk((0,0), size, initial_angle=270-dphi, final_angle = 270+dphi)
+    WC.add([r1, c1, c2])
+
+    if extraLayer:
+        c3 = cad.shapes.Disk((0,0), size+.2*mm, layer=2)
+        WC.add(c3)
+
+    #bottom stripes
+    #c3b = circleSlice((0,0), size, phi=-70, dphi=5)
+    #c4b = circleSlice((0,0), size, phi=-65, dphi=5)
+    #c5b = circleSlice((0,0), size, phi=-60, dphi=5)
+    #c3 = cad.core.Boundary(c3b)
+    #c4 = cad.core.Boundary(c4b)
+    #c5 = cad.core.Boundary(c5b)
+    #WC.add([r1, c1,c2, c3, c4,c5])
+    
+    return WC
+
+def flatCircle(coords, radius, dphi):
+    ''' 
+    make a flattened circle using the circBoundary function that starts on the right, 
+    #goes clocwise and 
+    #dphi is in degrees
+    '''
+
+    b1 = circBoundary(coords, radius, init_angle=0, final_angle=90-dphi)
+    b2 = circBoundary(coords, radius, init_angle=90+dphi, final_angle=270-dphi)
+    b3 = circBoundary(coords, radius, init_angle=-90+dphi, final_angle=0)
+    
+    return b1+b2+b3
+
+def circBoundary(coords, radius, init_angle=0, final_angle=360, nopoints=199):
     '''
     make a boundary of circular shape
-
     Note that 199 is the maximum number of points permissable by GDS
-
     Also note that when defining boundaries, the order matters: make sure you
     draw your circle in the right direction
     '''
@@ -1541,12 +1865,451 @@ def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
     angles = np.arange(init_angle, final_angle+dphi, dphi)
     x,y = coords
 
-    points = []
-    for phi in angles:
-        points.append([x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))])
+    return [[x + radius*np.cos(rad(phi)), y + radius*np.sin(rad(phi))] for phi in angles]
 
-    return points
+def circleSlice(coords, radius, phi, dphi):
+    '''
+    Draws a horizontal slice of a circle
+    phi is the angle for positive x around which the slice is drawn. dphi depends the angular width of the slice
+    '''
+    phi2 = 180 - phi
+    b1 = circBoundary(coords, radius, init_angle=phi-dphi/2, final_angle = phi+dphi/2)
+    b2 = circBoundary(coords, radius, init_angle=phi2-dphi/2, final_angle = phi2+dphi/2)
 
+    return b1+b2
+
+
+#==========================================================================
+#------------------------------PCB-----------------------------------------
+#==========================================================================
+
+def PCBShape1(PCBSize, chipSize=(5*mm,10*mm)):
+    '''
+    circular design
+    '''
+    PC = cad.core.Cell('PCB')
+
+    x,y = chipSize
+
+    c1 = cad.shapes.Disk((0,0), PCBSize/2, inner_radius=PCBSize/2+1*mm)
+    c2 = cad.shapes.Disk((0,0), PCBSize/2, inner_radius=PCBSize/2+1*mm,layer=1)
+    #r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2))
+    r2 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2),layer=1)
+    
+    #c2 = cad.shapes.Disk((0,0), size, initial_angle=270-dphi, final_angle = 270+dphi)
+    PC.add([r1, c1, r2, c2])
+    return PC
+
+
+def PCBShape2(PCBSize, gap=2*mm, thick=2*mm, offCenter=(0,0), chipSize=(10*mm,5*mm)):
+    '''
+    square design
+    '''
+
+    PC = cad.core.Cell('PCB')
+
+    #boundary
+    xp, yp = PCBSize
+    linethick = 2*mm
+    b = PCBBorder(PCBSize, gap=gap, thick=thick, offCenter=offCenter, layers=[0,1])
+
+    PC.add(b)
+    return PC
+
+def chip(coords, chipSize, chipType='D', vias=True, rot=0, layers=[0,1]):
+    '''
+    draw a chip
+    '''
+
+    CC = cad.core.Cell('CHIP')
+
+    x,y = chipSize
+    for l in layers:
+        r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2), layer=l)
+        CC.add(r1) 
+
+    #vias:
+    if vias:
+        viaCell, viaLocs = chipVias(chipSize, coords, chipType, rot)
+        CC.add(viaCell)
+
+    #rotate, translate
+    CCr = cad.core.CellReference(CC, rotation=rot)
+    CCr.translate(coords)
+
+    if vias:
+        return CCr, viaLocs
+    else:
+        return CCr
+
+def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layers=[0,1]):
+    '''
+    offcenter is for displacing the gaps from the center in order to line them up
+        list of 2 values, one for the top edge, one for the lower edge   
+    '''
+    
+    BC = cad.core.Cell('PCBORDER')
+    x,y = pcbSize
+    hg = gap/2
+    ocb = offCenter[1]
+    if ocb == 0:
+        ocb = x/3
+
+
+    #topLeft
+    ptl = [[-x/2, hg], [-x/2, y/2], [-hg - offCenter[0], y/2], [-hg - offCenter[0], y/2+gap], 
+            [-x/2-gap, y/2+gap], [-x/2-gap, hg],[-x/2,hg]]
+
+    #topRight
+    ptr = [[x/2, hg], [x/2, y/2], [hg + offCenter[0], y/2], [hg + offCenter[0], y/2+gap], 
+            [x/2+gap, y/2+gap], [x/2+gap, hg],[x/2,hg]]
+
+    #bottom Left
+    pbl = [[-x/2, -hg], [-x/2, -y/2], [-ocb-hg, -y/2], [-ocb-hg, -y/2-gap],
+            [-x/2-hg, -y/2-gap], [-x/2-gap, -y/2-gap], [-x/2-gap, -hg], [-x/2, -hg]]
+
+    #bottom right
+    pbr = [[x/2, -hg], [x/2, -y/2], [ocb+hg, -y/2], [ocb+hg, -y/2-gap],
+            [x/2+hg, -y/2-gap], [x/2+gap, -y/2-gap], [x/2+gap, -hg], [x/2, -hg]]
+
+    #bottom center
+    for layer in layers:
+        btl = cad.core.Boundary(ptl, layer=layer)
+        btr = cad.core.Boundary(ptr, layer=layer)
+        bbl = cad.core.Boundary(pbl, layer=layer)
+        bbr = cad.core.Boundary(pbr, layer=layer)
+        bbc = cad.shapes.Rectangle((-ocb+hg, -y/2-gap),(ocb-hg, -y/2), layer=layer)
+        BC.add([btl, btr, bbl, bbr, bbc])
+
+    return BC
+
+
+
+def MMPXEdge(coords, vias=True, layers=[0,1], rot=0, connectorShape=True):
+    '''
+    MMPX Edge Connector
+    '''
+
+    PXCell = cad.core.Cell('MMPX')
+
+    x, y = defaults['MMPXEdge']
+    extrax = (defaults['MMPXTopWidth'] - x)/2
+    
+    for l in layers:
+        r = cad.shapes.Rectangle((-x/2,-y/2),(x/2,y/2), layer=l)
+        PXCell.add(r)
+
+    if connectorShape:
+        cc = mmpxConnect()
+        cc.translate((0, -y/2))
+        PXCell.add(cc)
+
+
+    if not vias:
+        #translate, rotate
+        PXCellr = cad.core.CellReference(PXCell, rotation=rot)
+        PXCellr.translate(coords)
+        return PXCellr
+
+    else:
+        #constants
+        viaLocs = []
+        ivD = defaults['interviaDistance']
+        vhD = defaults['viaHorizDistance']
+        #vertical part
+        x1 = -x/2 - vhD
+        ylocs = np.arange(-y/2-vhD,y/2,ivD)
+        for ys in ylocs:
+            viaLocs.append([x1,ys])
+            viaLocs.append([-x1,ys])
+            v1, v2 = Via((x1,ys)), Via((-x1,ys))
+            PXCell.add([v1,v2])
+        #horizontal part
+        y1 = ylocs[0]
+        xlocs1 = np.arange(-x/2-vhD+ivD, -b1-vhD-ivD, ivD)
+        xlocs2 = np.arange(x/2+vhD-ivD, b1+vhD+ivD, -ivD)
+        xlocs = np.hstack((xlocs1,xlocs2))
+        for xs in xlocs:
+            viaLocs.append([xs,y1])
+            v1 = Via([xs,y1])
+            PXCell.add(v1)
+
+        if connectorShape:
+            wideWidth = 1200*um #also set in mmpxConnect below
+            locs = [wideWidth/2+vhD, -y/2-vhD]
+            viaLocs.extend([[-locs[0],locs[1]],[locs[0],locs[1]]])
+            v1 = Via(locs)
+            v2 = Via([-locs[0], locs[1]])
+            PXCell.add([v1, v2])
+
+
+        #translate, rotate
+        viaLocsR = transRotVias(viaLocs, trans=coords, rot=rot)
+        PXCellr = cad.core.CellReference(PXCell, rotation=rot)
+        PXCellr.translate(coords)
+        return PXCellr, viaLocsR
+
+def mmpxConnect():
+    '''
+    Design by Einar Magnusson
+    zeropoint is at the bottom center
+    '''
+
+    MC = cad.core.Cell('MMPXCONNECT')
+
+    pcCenter = defaults['PCBcenter']
+    pcGap = defaults['PCBgap']
+    ml = defaults['MMPXConnectLen']
+    
+    preGap = 100*um
+    wideStart = 330*um
+    wideWidth = 1200*um
+    wideLen = 360*um
+    xtraWidth = 609*um
+    tapLen = 310*um
+
+    if wideLen+wideStart+tapLen != ml:
+        raise Exception, 'the settings in maskDesign.mmpxConnect are not commensurate with the MMPXConnectLen default setting defined in defaultParms and used in PCBClass.EdgeMMMPX'
+
+    points = [[-xtraWidth/2,0],[-xtraWidth/2, wideStart],[-wideWidth/2, wideStart],
+            [-wideWidth/2, wideStart+wideLen], [-pcGap/2, wideStart+wideLen+tapLen],
+            [-pcCenter/2, wideStart+wideLen+tapLen],[-pcCenter/2, preGap],
+            [pcCenter/2, preGap],
+            [pcCenter/2, wideStart+wideLen+tapLen],[pcGap/2, wideStart+wideLen+tapLen],
+            [wideWidth/2, wideStart+wideLen],[wideWidth/2, wideStart], [xtraWidth/2,wideStart],
+            [xtraWidth/2, 0], [-xtraWidth/2, 0]]
+
+    bound = cad.core.Boundary(points)
+    MC.add(bound)
+
+
+    MCr = cad.core.CellReference(MC, rotation=180)
+    return MCr
+
+
+
+
+
+def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0, endrot=0):
+    '''
+    route a CPW from point (0,0) to (dx, dy)
+    This function assumes dy to be positive. If you need negative dy, use rotate
+    '''
+
+    if dy<0:
+        raise ValueError, 'dy must be positive, use rotate to get negative vertical distances'
+
+    #init
+    routeCell = cad.core.Cell('ROUTE')
+    minrbend = defaults['PCBrbend']
+    gap = defaults['PCBgap']
+    center = defaults['PCBcenter']
+    allViaLocs = []
+
+    if endrot not in ['r', 'l']:
+        if abs(dy) > abs(dx):
+            #if the horizontal distance is appreciable
+            if  abs(dx) >= minrbend:
+                cCell, viaLocs = CPW((0, (dy-abs(dx))/2), dy-abs(dx), center=center, gap=gap, vias=True, rot=90)
+                allViaLocs.extend(viaLocs)
+                if coords[0] < 0:
+                    arcCell, viapos = CPWArc((dx, abs(abs(dy)-abs(dx))), 180, np.cos(rad(rot))*-90, radius=dx, center=center, vias=True, gap=gap)
+                elif coords[0] > 0:
+                    arcCell, viapos = CPWArc((dx, abs(abs(dy)-abs(dx))), 180, np.cos(rad(rot))*90, radius=dx, center=center, vias=True, gap=gap)
+                    #arcCell, viapos = CPWArc((dx, (dy-dx)), 90, 90, radius=dx, center=center, vias=True, gap=gap)
+                allViaLocs.extend(viapos)
+                routeCell.add([arcCell, cCell])
+            
+            #in case the horizontal distance is small
+            elif (0 < abs(dx) < abs(minrbend)):
+                #calculate span of double arc
+                phirad = np.arccos(1-(abs(dx)+minrbend)/(2*minrbend))
+                phirad = np.arccos(1-(minrbend-abs(dx))/(2*minrbend))
+                yspan = 2*minrbend*np.sin(phirad) # span of double arc
+                print 'yspan is going to be ', yspan
+                if coords[0] < 0:
+                    arcCell, pos1 = CPWArc((dx, abs(abs(dy)-minrbend)), 90, np.cos(rad(rot))*90, radius=minrbend, center=center, gap=gap, vias=True)
+                    sCell, yspanc, pos2 = doubleArc((-np.cos(rad(rot))*(minrbend-abs(dx))/2, dy-minrbend-yspan/2), np.cos(rad(rot))*(minrbend-abs(dx)), rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
+                elif coords[0] > 0:
+                    arcCell, pos1 = CPWArc((dx, abs(abs(dy)-minrbend)), 90, np.cos(rad(rot))*-90, radius=minrbend, center=center, gap=gap, vias=True)
+                    #arcCell, pos1 = CPWArc((dx, (dy-minrbend)), 90, 90, radius=minrbend, center=center, vias=True, gap=gap)
+                    sCell, yspanc, pos2 = doubleArc((np.cos(rad(rot))*(minrbend-abs(dx))/2, dy-minrbend-yspan/2), np.cos(rad(rot))*-(minrbend-abs(dx)), rbend=minrbend, center=center, gap=gap, vias=True, rot=90)
+                allViaLocs.extend(pos1)
+                allViaLocs.extend(pos2)
+                cCell, viaLocs = CPW((0, (dy-minrbend-yspan)/2), dy-minrbend-yspan, center=center, gap=gap, vias=True, rot=90)
+                routeCell.add([arcCell, sCell, cCell])#, sCell, cCell])
+                allViaLocs.extend(viaLocs)
+            else:
+                print 'Undefined situation in CPWroutePCB'
+    else:
+        #check in which direction to bend
+        print 'USING AN UNKNOWN ROUTING ALGO!!!!'
+#        if dx >= 2*rbend: 
+#            sCell = sLine((dx/2, rbend), dx, rbend=rbend, reflect=True, bridges=bridges, rot=90)
+#            cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
+#        elif dx <= -2*rbend and dx!=0:
+#            sCell = sLine((dx/2, rbend), abs(dx), rbend=rbend, bridges=bridges, rot=90)
+#            cCell = CPW((dx, dy/2+rbend), dy-2*rbend, bridges=bridges, rot=90)
+#        elif 0 < dx <= 2*rbend:
+#            sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
+#            cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
+#        elif -2*rbend < dx < 0:
+#            sCell, yspanc = doubleArc((dx/2, yspan/2), -dx, rot=90)
+#            cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
+#        elif dx == 0:
+#            cCell = CPW((dx, dy/2+yspan/2), dy-yspan, bridges=bridges, rot=90)
+#        if dx==0:
+#            routeCell.add([cCell])
+#        else:
+#            routeCell.add([sCell, cCell])
+#
+        #Take care of the endrot
+        if endrot == 'r':
+            arcCell, pos = CPWArc((dx+rbend, dy), 90, 90, gap=gap, center=center, vias=True)
+            allViaLocs.append(pos)
+            routeCell.add(arcCell)
+        elif endrot == 'l':
+            arcCell, pos = CPWArc((dx-rbend, dy), 0, 90, gap=gap, center=center)
+            routeCell.add(arcCell)
+            allViaLocs.append(pos)
+
+    #rotate and translate
+    allViaLocs = transRotVias(allViaLocs, trans=coords[:2], rot=rot)
+    routeCellr = cad.core.CellReference(routeCell, rotation = rot)
+    routeCellr.translate(coords[:2])
+
+    return routeCellr, allViaLocs
+
+def Via(coords, viaDiam=None, layer=2):
+
+    if viaDiam==None:
+        viaDiam = defaults['viaDiameter']
+
+    VC = cad.core.Cell('VIA')
+    h = cad.shapes.Disk((0,0), viaDiam/2, layer=layer)
+    VC.add(h)
+    
+    VCr = cad.core.CellReference(VC, origin=coords)
+
+    return VCr
+
+def screwHole(coords, diameter, layer = 2):
+    '''
+    Adds a hole for screwing the PCB to the sample holder at layer 1
+    '''
+
+    SC = cad.core.Cell('SCREWHOLE')
+    h = cad.shapes.Disk((0,0), diameter/2, layer=layer)
+    SC.add(h)
+
+    SCr = cad.core.CellReference(SC, origin=coords)
+
+    return SCr
+
+
+def arcVias(initAngle, degrees, radius, center, gap):
+    '''
+    Draws vias along an arc, returns the Cell and the locations
+    '''
+
+    VA = cad.core.Cell('ARCVIA')
+    vhD = defaults['PCBgap']/2+defaults['viaHorizDistance']
+    ivD = defaults['interviaDistance']
+    posList = []
+
+    for i in range(1,3):
+        r = radius+vhD*np.power(-1,i)
+        arcLen = abs(2*np.pi*r*degrees/360)
+        #TODO Just changed arcLen to abs arcLen
+        if arcLen <= 2*ivD:
+            print 'no arcs'
+            #locs = (r*np.cos(rad(initAngle+degrees/2)), r*np.sin(rad(initAngle+degrees/2)))
+            #posList.append(locs)
+            #VA.add(Via(locs))
+        else:
+            nums = np.floor(arcLen/ivD)
+            phi1 = degrees * (ivD/2/arcLen)
+            dphi = abs((degrees/nums) * (arcLen-ivD)/(arcLen))
+            phiList = np.arange(initAngle+phi1, initAngle+degrees, np.sign(degrees)*dphi)
+
+            for p in phiList:
+                nx, ny = r*np.cos(rad(p)), r*np.sin(rad(p))
+                posList.append([nx, ny])
+                VA.add(Via([nx,ny]))
+
+    #return
+    return VA, posList
+
+
+def chipVias(chipSize, coords, chipType, rot):
+
+    #make cell, define constants
+    VA = cad.core.Cell('ARCVIA')
+    vhD = defaults['PCBgap']/2+defaults['viaHorizDistance']
+    ivD = defaults['interviaDistance']
+    posList = []
+
+    x, y = chipSize
+    xv=  x+vhD
+    yv = y+vhD
+    
+    if chipType != 'D':
+        raise Exception, 'Automatic via allocation to chip is only implemented for chipType D'
+
+    #sides
+    ynums = np.round(y/ivD)
+    ydis = y/(ynums-1)
+    ys = np.arange(-y/2+ydis, y/2, ydis)
+    for yn in ys:
+        posList.extend([[-xv/2, yn],[xv/2, yn]])
+        VA.add(Via([-xv/2, yn]))
+        VA.add(Via([xv/2, yn]))
+    
+    #place 1 via between each 2 connectors:
+    a, offCenters = dLists
+    oC = offCenters['D'] 
+    print 'oC is ', oC
+    np.mean(oC)
+    pos = [-np.mean(oC), 0 , np.mean(oC)] #0 is mean between oC[0] and -oC[0]
+    print 'pos is ', pos
+    for p in pos:
+        #posList.extend([[p, -yv/2],[p, yv/2]])
+        #VA.add(Via([p,-yv/2]))
+        #VA.add(Via([p,yv/2]))
+        pass
+     
+    viaLocs = transRotVias(posList, trans=coords, rot=rot)
+
+    return VA, viaLocs
+
+def PCBAlign(coords=(0,0)):
+    '''
+    3layer align structure, no aligning for the mill?'
+
+    via hole at the center
+
+    crossbar in layer X
+    Disk in layer Z
+    '''
+
+    AC = cad.core.Cell('ALIGN')
+    vD = defaults['viaDiameter']
+
+    v = Via((0,0))
+    d = cad.shapes.Disk((0,0), 2.4*mm, inner_radius=1.6*mm)
+
+    #crossbar
+    th = .2*mm
+    le = 4*mm
+    bh = cad.shapes.Rectangle((-le/2, -th/2),(le/2, th/2))
+    bv = cad.shapes.Rectangle((-th/2, -le/2),(th/2, le/2))
+
+    AC.add([v,d,bh,bv])
+
+    #rotate, translate
+    ACr = cad.core.CellReference(AC, origin=coords)
+
+    return ACr
 
 
 
@@ -1554,6 +2317,21 @@ def circBoundary(coords, radius, init_angle=0, final_angle=180, nopoints=199):
 #-------------------------------UTILITIES----------------------------------
 #==========================================================================
         
+def transRotVias(viaLocs, trans=(0,0), rot=0):
+    '''
+    rotate and translate via locations
+    Input: via Locations, translation coords, rotation in degrees
+    '''
+    viaLocsR = []
+    for viacoord in viaLocs:
+        x,y = viacoord
+        #rotate
+        viaLocsR.append([x*np.cos(rad(rot))-y*np.sin(rad(rot))+trans[0],
+            y*np.cos(rad(rot))+x*np.sin(rad(rot))+trans[1]])
+        #translate
+    return viaLocsR
+
+
 def rad(degrees):
     '''
     translates degrees to radians
