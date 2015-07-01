@@ -83,10 +83,11 @@ def dPars():
             'MMPXEdge'              : (3.5*mm, 5.2*mm),     # side MMPX dimensions
             'MMPXTopWidth'          : 4.5*mm,
             'MMPXConnectLen'        : 1000*um,
+            'MMPXOverlapWidth'      : .5*mm,     #half a mm overlap with PCB on each side
             'PCBcenter'             : .382*mm,                #parameters for PCB CPWs
             'PCBgap'                : .58*mm,
             'PCBChipMargin'         : .5*mm,    #total maring: half of this is added to each side
-            'PCBScrewHole'          : 2*mm,
+            'PCBScrewHole'          : 2.7*mm,
             'PCBrbend'              : 1*mm,     #minimum bend radius
             'viaDiameter'           : .5*mm,                 
             'interviaDistance'      : 1*mm,

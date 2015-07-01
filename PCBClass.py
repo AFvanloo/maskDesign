@@ -29,6 +29,8 @@ class PCB:
         Use the layers as follows:
             layer 0 is for lithography
             layer 1 is for drilling
+
+        PCBOffcenter is about where to space the milling holes
         '''
         #properties
         self.fileName = 'testPCB.gds'
@@ -684,6 +686,11 @@ def splitLayer(cell, layer):
     return c2
 
 def showLayers(cell, layers=[0,1,2]):
+    '''
+    Show the indicated layers
+
+    Watch out: this function eats a cell (and layers to be shown), not a PCB object
+    '''
     for l in range(len(layers)):
         lc = splitLayer(cell, layers[l])
         lc.show()
@@ -703,15 +710,14 @@ def makeDrillFile(PCB, PCBSize, viaLocations, screwLocations, fname = './PCBsGen
     #tool size
     vd = defaults['viaDiameter']
     sh = defaults['PCBScrewHole']
-    f.write('T01C%1.4f\n' % vd)#TODO VIA HOLES
-    f.write('T02C%1.4f\n' % sh) #TODO SCREW HOLES
+    f.write('T01C'+('%3.3f' % (vd/1e6)).zfill(7)+'\n')
+    f.write('T02C'+('%3.3f' % (sh/1e6)).zfill(7)+'\n')
     f.write('%\n') #start pattern
-
-    #shift via positions by board size
 
     #main body: vias
     f.write('T01\n')
-    viaLocations = (np.array(viaLocations) + np.array(PCBSize)/2)*1e3
+    #shift via positions by board size
+    viaLocations = (np.array(viaLocations) + np.array(PCBSize)/2)/1e3
     viaLocations = viaLocations.tolist()
     for v in viaLocations:
         x, y = v
@@ -721,10 +727,15 @@ def makeDrillFile(PCB, PCBSize, viaLocations, screwLocations, fname = './PCBsGen
         
     #main body: Screw holes
     f.write('T02\n')
-    #add half board size like above
-
+    screwLocations = (np.array(screwLocations) + np.array(PCBSize)/2)/1e3
+    screwLocations = screwLocations.tolist()
+    for s in screwLocations:
+        x, y = s
+        xs = 'X0%i' % np.round(x)
+        ys = 'Y0%i' % np.round(y)
+        f.write(xs+ys+'\n')
 
     #end 
-    f.write('T00')  #is this necessary?
-    f.write('M30')  #Ending statement'
+    f.write('T00\n')  #is this necessary?
+    f.write('M30\n')  #Ending statement'
     f.close()

@@ -762,7 +762,9 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
         texts = cad.shapes.Label(text,fontsize,coords,layer=layer)
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
-        texts.add_text(text,font.add(texts))
+        texts.add_text(text, font)
+
+    textCell.add(texts)
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -2016,8 +2018,9 @@ def MMPXEdge(coords, vias=True, layers=[0,1], rot=0, connectorShape=True):
         viaLocs = []
         ivD = defaults['interviaDistance']
         vhD = defaults['viaHorizDistance']
+        mhE = defaults['MMPXOverlapWidth']
         #vertical part
-        x1 = -x/2 - vhD
+        x1 = -x/2 - mhE - vhD
         ylocs = np.arange(-y/2-vhD,y/2,ivD)
         for ys in ylocs:
             viaLocs.append([x1,ys])
