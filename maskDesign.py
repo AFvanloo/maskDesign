@@ -762,7 +762,8 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
         texts = cad.shapes.Label(text,fontsize,coords,layer=layer)
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
-        texts.add_text(text,font.add(texts))
+        #texts.add_text(text,font.add(texts))
+        texts.add_text(text,font)
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -1121,7 +1122,7 @@ def alignMarks(coords, rot=0):
 def TransmonCapA(coords, periods=2, width=250*um, height=150*um, sep=40*um,
         amp=30*um, gap = 10*um, rot=0):
     '''
-    A transmon design to play with
+    A transmon design to play with, sinusoidal
     '''
 
     trCell = cad.core.Cell('TR')
@@ -1195,6 +1196,64 @@ def TransmonCapBoxA(coords, periods=3, width=250*um, height=150*um, sep=40*um,
     trCellr.translate(coords)
 
     return trCellr
+
+
+def transmonCapB(coords, nfingers, fingerLen, fingerThick, gapHeight, gapWidth,
+        topPlate, bottomPlate, xtraUp, xtraDown, xtraLeft, xtraRight,
+        connectLines=None, rot=0):
+    '''
+    A traditional fingercap structure (not rounded)
+    '''
+    #TODO rounded ends
+    try:
+        nfingers > 2
+    except ValueError:
+        print 'Needs at least two fingers'
+
+    #init
+    capCell = cad.core.Cell('TransmonCapB')
+
+    capWidth = nfingers*fingerThick + (nfingers-1)*gapHeight
+    capHeight = fingerLen + 2*gapWidth
+
+    #Draw the capacitor by using the fingerCap function
+    fingers = fingerCap((0,0), nfingers, fingerLen, fingerThick, gapHeight,
+            gapWidth, rot=90)
+    capCell.add(fingers)
+
+    #draw the extra boxes
+    north = cad.shapes.Rectangle((-capWidth/2, capHeight/2+topPlate),
+            (capWidth/2, capHeight/2+topPlate+xtraUp))
+    south = cad.shapes.Rectangle((-capWidth/2, -capHeight/2 - bottomPlate),
+            (capWidth/2, -capHeight/2 - bottomPlate - xtraDown))
+    west = cad.shapes.Rectangle((-capWidth/2-xtraLeft, -capHeight/2 -
+        bottomPlate - xtraDown),
+            (-capWidth/2, capHeight/2 + topPlate + xtraUp))
+    east = cad.shapes.Rectangle((capWidth/2, -capHeight/2 - bottomPlate - xtraDown),
+            (capWidth/2+xtraRight, capHeight/2 + topPlate + xtraUp))
+
+    if connectLines == 'r':
+        exitWidth=fingerThick
+        exitSize=5*fingerThick
+        exitDis=3*fingerThick
+        east = cad.shapes.Rectangle((capWidth/2, capHeight/2 + topPlate + xtraUp),
+                (capWidth/2 + exitSize, -fingerLen/2 + exitWidth))
+        south = cad.shapes.Rectangle((-capWidth/2, -capHeight/2 - bottomPlate),
+                (capWidth/2 - exitWidth, -capHeight/2 - bottomPlate - xtraDown))
+        southb = cad.shapes.Rectangle((capWidth/2, -fingerLen/2),
+                (capWidth/2 + exitDis, -capHeight/2 - bottomPlate - xtraDown))
+        southc = cad.shapes.Rectangle((capWidth/2 + exitDis + exitWidth, -fingerLen/2 + exitWidth),
+                (capWidth/2 + exitSize, -capHeight/2 - bottomPlate - xtraDown))
+        capCell.add([southb, southc])
+    #add to cell
+    capCell.add([north, south, west, east])
+
+    #rotate and translate
+    capCellr = cad.core.CellReference(capCell, rotation=rot)
+    capCellr.translate(coords)
+
+    return capCellr
+
 
 
 
