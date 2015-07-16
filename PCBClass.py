@@ -479,10 +479,10 @@ class Chip:
 
         #draw and add Cell
         if self.vias:
-            self.Cell, viaLocs = md.chip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
+            self.Cell, viaLocs = md.PCBchip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
             PCBX.viaPositions.extend(viaLocs)
         else:
-            self.Cell = md.chip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
+            self.Cell = md.PCBchip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
         PCBX.topCell.add(self.Cell)
 
 
@@ -667,7 +667,6 @@ def arcrad(radians):
     translates degrees to radians
     '''
     return radians * 360 / 2 / np.pi 
-<<<<<<< HEAD
 
 
 def splitLayer(cell, layer):
