@@ -19,8 +19,7 @@ defaults = dpars.dPars()
 class Sample:
 
     def __init__(self, border, launcherConfig='A', launcherPositions=[],
-            alignPos=[], label = '', borderGap = None, labelPos = None, labelFontSize=None,
-            posRes = False, a1=None, b1=None):
+            alignPos=range(4), label = '', labelPos = None, labelFontSize=None):
         '''
         Calling constructor
 
@@ -43,8 +42,6 @@ class Sample:
         alignPositions refers to which alignment marks to draw, clockwise from
         the left upper corner
 
-        the 'posRes' option refers to positive resist chips. This will change the border sizes
-
         '''
         #TODO Default Values: hardcode or config file?
         self.fileName = 'test0123.gds'
@@ -56,13 +53,7 @@ class Sample:
         #Sample border Options
         self.borders = borderTagList[border]
         self.borderTag = border
-        self.posRes = posRes
-        self.posResEdge = defaults['posResEdge']
-        self.offCenters = offCenters
-        if borderGap == None:
-            self.borderGap = defaults['borderGap']
-        else:
-            self.borderGap = borderGap
+        self.borderGap = defaults['borderGap']
 
         #launcher options
         self.launcherPositions = launcherPositions
@@ -75,14 +66,8 @@ class Sample:
         self.alignPos = alignPos
 
         #line options
-        if a1 == None:
-            self.a1 = defaults['centerConductor']
-        else:
-            self.a1 = a1
-        if b1 == None:
-            self.b1 = defaults['CPWGap']
-        else:
-            self.b1 = b1
+        self.a1 = defaults['centerConductor']
+        self.b1 = defaults['CPWGap']
         self.abr = self.b1/self.a1
         self.rbend = defaults['minimumRadius']
 
@@ -151,7 +136,7 @@ class Sample:
 
         #Start Constructing the Sample
         print 'border type is ', border 
-        if (border < 1) or (border > 7):
+        if (border < 1) or (border > 4):
             raise Exception, 'Choose border between 1 and 4'
             #If using python 3, replace with following line
             #raise Exception('Choose border between 1 and 4')
@@ -172,10 +157,10 @@ class Sample:
         self.border1 = Border(self)
 
         #add label
-        self.addText(self.label, placeInfo = self.labelPos)
+
+        self.addText(self.label, fontSize = 500*um, placeInfo = self.labelPos)
 
         #add Launchers
-        print 'in initSample, center is ', self.a1
         self.addLaunchers()
 
 #========================sampleX wrappers for objects===========================
@@ -293,7 +278,7 @@ class Sample:
 
     def addWiggle(self, nWiggle, leng, xspan, placeInfo, xOffset=0,
             yOffset=0, skew=0, rbend = None, bridges=True, closeA = False, closeB =
-            False, flip=False, rot=0, name = None):
+            False, rot=0, name = None):
         '''
         Add a wiggly CPW
 
@@ -313,7 +298,7 @@ class Sample:
         self.wiggles += 1
         setattr(self,  name if name else 'wiggle'+str(self.wiggles), Wiggle(self,nWiggle, leng,
             xspan, placeInfo, xOffset, yOffset, skew, rbend, bridges, closeA,
-            closeB, flip, rot))
+            closeB, rot))
 
         
     def addSLine(self, yspan, placeInfo, rbend = None, reflect=False,
@@ -554,7 +539,6 @@ class Sample:
         if gap == None: gap = self.b1
 
         
-        print 'in addlaunchers, center is ', center
         #get the position list associated with the chosen configuration 
         self.launcherLocations = self.launchPosList()
 
@@ -573,12 +557,12 @@ class Sample:
         Ugly implementation, feel free to efficify
         '''
 
-        #cast to string
+        #force to string
         self.launcherConfig  = str(self.launcherConfig)
 
         #Check for valid input
-        if self.launcherConfig.upper() not in ['A', 'B', 'C', 'D']:
-            raise Exception, 'Launcherconfig must be either A, B, C or D'
+        if self.launcherConfig not in ['A', 'B', 'C']:
+            raise Exception, 'Launcherconfig must be either A, B or C (case sensitive)'
             #python 3 variant below
             #raise Exception('Launcherconfig must be either A, B or C (case sensitive)')
 
@@ -586,7 +570,7 @@ class Sample:
         borX, borY = self.borders[0]/2.,self.borders[1]/2.
         positions = []
         #Get the offcenter locations depending on launcherconfig
-        offs = self.offCenters[self.launcherConfig]
+        offs = offCenters[self.launcherConfig]
 
         if self.launcherConfig == 'A':
             # 8 launchers max, 1 left/right, 3 top/bottom
@@ -623,13 +607,6 @@ class Sample:
                 [-offX1, -borY, 90], [-offX2, -borY, 90]])
             positions.extend([[-borX, -offY2, 0],[-borX, -offY1, 0]])
 
-        if self.launcherConfig == 'D':
-            # 8 launchers max, 4 top/bottom
-            offX1, offX2 = offs
-            positions.extend([[-offX1,borY,-90],[-offX2,borY,-90],[offX2,borY,-90],[offX1,borY,-90]])
-            positions.extend([[offX1,-borY,90],[offX2,-borY,90],[-offX2,-borY,90],[-offX1,-borY,90]])
-
-
         return positions    
     
     def addCrossArray(self, placeInfo):
@@ -647,7 +624,7 @@ class Sample:
 
 
 
-    def addText(self, text, placeInfo=None, fontSize=None, font = None, rot=0, layer=0):
+    def addText(self, text, placeInfo=None, fontSize = 200*um, font = None, rot=0, layer=0):
         '''
         Add labels to the chip
 
@@ -661,7 +638,6 @@ class Sample:
         '''
 
         if font == None: font = self.labelFont
-        if fontSize == None: fontSize = self.labelFontSize
         #Determine some coordinates for the text
         if placeInfo == None: 
             mtext = max(text.split('\n'))
@@ -826,6 +802,7 @@ u
         self.layout.add(self.topCell)
         self.layout.save(self.fileName)
     
+
     def show(self):
         self.layout.add(self.topCell)
         self.layout.show()
@@ -843,13 +820,8 @@ class Border:
     def __init__(self,sampleX):
 
         #make the cell
-        if  sampleX.posRes:    # For positive photoresist samples
-            whiteGap = sampleX.borderGap - sampleX.posResEdge
-            xborder, yborder = sampleX.borders[0] + whiteGap, sampleX.borders[1] + whiteGap
-            self.Cell = md.borderA(xborder, yborder, sampleX.posResEdge, sampleX.alignPos, layer=1)
-        else:               # For negative photoresist samples
-            self.Cell = md.borderA(sampleX.borders[0],sampleX.borders[1],
-                    sampleX.borderGap, sampleX.alignPos)
+        self.Cell = md.borderA(sampleX.borders[0],sampleX.borders[1],
+                sampleX.borderGap, sampleX.alignPos)
         sampleX.topCell.add(self.Cell)
         
 
@@ -868,7 +840,6 @@ class Launcher:
         
         #initialize variables
         self.rot = rot
-
         
         #Decide if we have coordinates or connection
         if type(placeInfo) == int:
@@ -1000,6 +971,9 @@ class CPW:
   #      if bridges:
   #          self.addBridges()
   #          sampleX.topCell.add(self.ABCellr)
+
+        print 'self.a1 is ', sampleX.a1
+
         #Add the CPW cell to the TopCell
         sampleX.topCell.add(self.Cell)
         
@@ -1089,7 +1063,7 @@ class Arc:
         make the cad Cell reference of the CPW
         '''
         self.Cell = md.CPWArc(self.coords, self.initAngle, self.degrees,
-                radius=self.rbend, rot = self.rot, center=sampleX.a1, gap=sampleX.b1)
+                radius=self.rbend, rot = self.rot)
         #Add the cell to the TopCell
         sampleX.topCell.add(self.Cell)
 
@@ -1132,12 +1106,12 @@ class DoubleArc:
                 self.xspan/2.*np.cos(rad(self.rot)), self.coords[1] +
                 self.xspan/2.*np.sin(rad(self.rot)) + self.dy/2*np.cos(rad(self.rot)))
 
-        self.makeCell(sampleX)
+        self.makeCell()
         sampleX.topCell.add(self.Cell)
 
-    def makeCell(self, sampleX):
+    def makeCell(self):
         self.Cell, b = md.doubleArc(self.coords, self.dy, rot = self.rot,
-                rbend=self.rbend, center=sampleX.a1, gap=sampleX.b1)
+                rbend=self.rbend)
 
         
 class SLine:
@@ -1214,7 +1188,7 @@ class SLine:
         '''
         self.Cell = md.sLine(self.coords, self.yspan, rbend=self.rbend,
                 reflect=self.reflect, enter=self.enter, exit = self.exit,
-                bridges = self.bridges, rot=self.rot, center=sampleX.a1, gap=sampleX.b1)
+                bridges = self.bridges, rot=self.rot)
         #Add the cell to the TopCell
         sampleX.topCell.add(self.Cell)
 
@@ -1251,7 +1225,7 @@ class JLine:
             self.coords = placeInfo
         
         #Make the Cell
-        self.makeCell(sampleX)
+        self.makeCell()
 
         #Add airbridges
         if bridges:
@@ -1261,10 +1235,10 @@ class JLine:
         #Add cell to total
         sampleX.topCell.add(self.Cell)
 
-    def makeCell(self, sampleX):
+    def makeCell(self):
 
         self.Cell, self.wigyspan = md.jLine(self.coords, self.totLen, self.xspan, self.yspan,
-                self.nWiggles, rbend=self.rbend, rot = self.rot, center=sampleX.a1, gap=sampleX.b1)
+                self.nWiggles, rbend=self.rbend, rot = self.rot)
 
     def addBridges(self):
         '''
@@ -1294,7 +1268,7 @@ class JLine:
 class Wiggle:
     
     def __init__(self, sampleX, nWiggles, leng, xspan, placeInfo, xOffset,
-            yOffset, skew, rbend, bridges, closeA, closeB, flip, rot):
+            yOffset, skew, rbend, bridges, closeA, closeB, rot):
         '''
         Construct a Wiggles
         '''
@@ -1318,31 +1292,21 @@ class Wiggle:
             comp = getattr(sampleX, placeInfo.split('.')[0])
             self.cp = getattr(comp, placeInfo.split('.')[1])
             #Adjust for the size of the component
-            if flip:
-                self.coords = (self.cp[0] - self.xspan/2.*np.cos(rad(rot)) + self.skew*np.sin(rad(rot)),
-                        self.cp[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
-            else:
-                self.coords = (self.cp[0] + self.xspan/2.*np.cos(rad(rot)) - self.skew*np.sin(rad(rot)),
-                        self.cp[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
+            self.coords = (self.cp[0] + self.xspan/2.*np.cos(rad(rot)) - self.skew*np.sin(rad(rot)),
+                    self.cp[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
         else:
             #its coordinates
             self.coords = placeInfo
         
 
         #Connector locations
-        if flip:
-            self.connectA = (self.coords[0] + self.xspan/2.*np.cos(rad(rot)), 
-                    self.coords[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
-            self.connectB = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
-                    self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
-        else:
-            self.connectA = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
-                    self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
-            self.connectB = (self.coords[0] + self.xspan/2.*np.cos(rad(rot)), 
-                    self.coords[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
+        self.connectA = (self.coords[0] - self.xspan/2.*np.cos(rad(rot)), 
+                self.coords[1] - self.xspan/2.*np.sin(rad(rot)) - self.skew*np.cos(rad(rot)))
+        self.connectB = (self.coords[0] + self.xspan/2.*np.cos(rad(rot)), 
+                self.coords[1] + self.xspan/2.*np.sin(rad(rot)) + self.skew*np.cos(rad(rot)))
 
         #make the cell
-        self.makeCell(sampleX)
+        self.makeCell()
 
         if bridges != False:
             self.addBridges(sampleX)
@@ -1351,13 +1315,13 @@ class Wiggle:
         sampleX.topCell.add(self.Cellr)
 
 
-    def makeCell(self, sampleX):
+    def makeCell(self):
 
         #construct object
         self.Cellr, self.yspan = md.nWiggle(self.coords, self.leng, self.xspan, 
                 self.nWiggles, xOffset = self.xOffset, 
                 yOffset = self.yOffset, skew = self.skew, closeA = self.closeA,
-                closeB = self.closeB, rot=self.rot, center=sampleX.a1, gap=sampleX.b1)
+                closeB = self.closeB, rot=self.rot)
    
 
     def addBridges(self, sampleX):
@@ -1799,7 +1763,7 @@ class GapCoupler:
     def makeCell(self, sampleX):
 
         #construct object
-        self.Cell = md.gapCoupler(self.coords,self.gapSize,leng=self.leng,rot=self.rot, center=sampleX.a1, gap=sampleX.b1)
+        self.Cell = md.gapCoupler(self.coords,self.gapSize,leng=self.leng,rot=self.rot)
         #Add to sample Cell
         sampleX.topCell.add(self.Cell)
         
@@ -1905,7 +1869,7 @@ class FingerCoupler:
         #construct object
         self.Cell = md.fingerCoupler(self.coords,self.nFingers, self.fingerLen,
                 self.fingerThick, self.gapHeight, self.gapWidth, 
-                self.taperLen, self.centerLen, center=sampleX.a1, gap=sampleX.b1, rot=self.rot)
+                self.taperLen, self.centerLen, rot=self.rot)
         #Add to sample Cell
         sampleX.topCell.add(self.Cell)
         
@@ -2025,11 +1989,13 @@ class ThinTenna:
         '''
         make the cad Cell reference of the CPW
         '''
-        print 'drawing a thinTenna!!!, it has a ', self.thin/1e3, ' um centerConductor' 
+        print 'drawing a thinTenna!!!, it has a ', self.thin/1e3, ' um centerConctor' 
         self.Cell = md.thinTenna(self.coords,self.totLen, self.thinLen,
                 thin = self.thin, tapLen = self.tapLen, preLen = self.preLen, 
                 a1 = self.a1, b1=self.b1, rot=self.rot)
 #
+
+
 
 
 #==========================================================================
