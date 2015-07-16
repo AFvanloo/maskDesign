@@ -762,9 +762,7 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
         texts = cad.shapes.Label(text,fontsize,coords,layer=layer)
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
-        texts.add_text(text, font)
-        #texts.add_text(text,font.add(texts))
-    textCell.add(texts)
+        texts.add_text(text,font.add(texts))
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -1123,7 +1121,7 @@ def alignMarks(coords, rot=0):
 def TransmonCapA(coords, periods=2, width=250*um, height=150*um, sep=40*um,
         amp=30*um, gap = 10*um, rot=0):
     '''
-    A transmon design to play with, sinusoidal
+    A transmon design to play with
     '''
 
     trCell = cad.core.Cell('TR')
@@ -1197,64 +1195,6 @@ def TransmonCapBoxA(coords, periods=3, width=250*um, height=150*um, sep=40*um,
     trCellr.translate(coords)
 
     return trCellr
-
-
-def transmonCapB(coords, nfingers, fingerLen, fingerThick, gapHeight, gapWidth,
-        topPlate, bottomPlate, xtraUp, xtraDown, xtraLeft, xtraRight,
-        connectLines=None, rot=0):
-    '''
-    A traditional fingercap structure (not rounded)
-    '''
-    #TODO rounded ends
-    try:
-        nfingers > 2
-    except ValueError:
-        print 'Needs at least two fingers'
-
-    #init
-    capCell = cad.core.Cell('TransmonCapB')
-
-    capWidth = nfingers*fingerThick + (nfingers-1)*gapHeight
-    capHeight = fingerLen + 2*gapWidth
-
-    #Draw the capacitor by using the fingerCap function
-    fingers = fingerCap((0,0), nfingers, fingerLen, fingerThick, gapHeight,
-            gapWidth, rot=90)
-    capCell.add(fingers)
-
-    #draw the extra boxes
-    north = cad.shapes.Rectangle((-capWidth/2, capHeight/2+topPlate),
-            (capWidth/2, capHeight/2+topPlate+xtraUp))
-    south = cad.shapes.Rectangle((-capWidth/2, -capHeight/2 - bottomPlate),
-            (capWidth/2, -capHeight/2 - bottomPlate - xtraDown))
-    west = cad.shapes.Rectangle((-capWidth/2-xtraLeft, -capHeight/2 -
-        bottomPlate - xtraDown),
-            (-capWidth/2, capHeight/2 + topPlate + xtraUp))
-    east = cad.shapes.Rectangle((capWidth/2, -capHeight/2 - bottomPlate - xtraDown),
-            (capWidth/2+xtraRight, capHeight/2 + topPlate + xtraUp))
-
-    if connectLines == 'r':
-        exitWidth=fingerThick
-        exitSize=5*fingerThick
-        exitDis=3*fingerThick
-        east = cad.shapes.Rectangle((capWidth/2, capHeight/2 + topPlate + xtraUp),
-                (capWidth/2 + exitSize, -fingerLen/2 + exitWidth))
-        south = cad.shapes.Rectangle((-capWidth/2, -capHeight/2 - bottomPlate),
-                (capWidth/2 - exitWidth, -capHeight/2 - bottomPlate - xtraDown))
-        southb = cad.shapes.Rectangle((capWidth/2, -fingerLen/2),
-                (capWidth/2 + exitDis, -capHeight/2 - bottomPlate - xtraDown))
-        southc = cad.shapes.Rectangle((capWidth/2 + exitDis + exitWidth, -fingerLen/2 + exitWidth),
-                (capWidth/2 + exitSize, -capHeight/2 - bottomPlate - xtraDown))
-        capCell.add([southb, southc])
-    #add to cell
-    capCell.add([north, south, west, east])
-
-    #rotate and translate
-    capCellr = cad.core.CellReference(capCell, rotation=rot)
-    capCellr.translate(coords)
-
-    return capCellr
-
 
 
 
@@ -1971,12 +1911,12 @@ def PCBShape2(PCBSize, gap=2*mm, thick=2*mm, offCenter=(0,0), chipSize=(10*mm,5*
     #boundary
     xp, yp = PCBSize
     linethick = 2*mm
-    b = PCBBorder(PCBSize, gap=gap, thick=thick, offCenter=offCenter, layer=1)
+    b = PCBBorder(PCBSize, gap=gap, thick=thick, offCenter=offCenter, layers=[0,1])
 
     PC.add(b)
     return PC
 
-def chip(coords, chipSize, chipType='D', vias=True, rot=0):
+def PCBchip(coords, chipSize, chipType='D', vias=True, rot=0, waveguideDimensions=(3*mm, 2.5*mm), layers=[0,1]):
     '''
     draw a chip
     '''
@@ -1984,8 +1924,16 @@ def chip(coords, chipSize, chipType='D', vias=True, rot=0):
     CC = cad.core.Cell('CHIP')
 
     x,y = chipSize
-    r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2), layer=1)
-    CC.add(r1) 
+    for l in layers:
+        r1 = cad.shapes.Rectangle((-x/2, -y/2),(x/2,y/2), layer=l)
+        CC.add(r1) 
+
+    if waveguideDimensions != None:
+        print 'adding waveguide space'
+        wx, wy = waveguideDimensions
+        r2 = cad.shapes.Rectangle((-wx/2-x/2, -wy/2),(-x/2, wy/2), layer=0)
+        r3 = cad.shapes.Rectangle((x/2, -wy/2),(x/2+wx/2, wy/2), layer=0)
+        CC.add([r2,r3])
 
     #vias:
     if vias:
@@ -2001,7 +1949,7 @@ def chip(coords, chipSize, chipType='D', vias=True, rot=0):
     else:
         return CCr
 
-def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layer=1):
+def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layers=[0,1]):
     '''
     offcenter is for displacing the gaps from the center in order to line them up
         list of 2 values, one for the top edge, one for the lower edge   
@@ -2018,33 +1966,33 @@ def PCBBorder(pcbSize, offCenter=(0,0), thick=2*mm, gap=2*mm, layer=1):
     #topLeft
     ptl = [[-x/2, hg], [-x/2, y/2], [-hg - offCenter[0], y/2], [-hg - offCenter[0], y/2+gap], 
             [-x/2-gap, y/2+gap], [-x/2-gap, hg],[-x/2,hg]]
-    btl = cad.core.Boundary(ptl, layer=layer)
 
     #topRight
     ptr = [[x/2, hg], [x/2, y/2], [hg + offCenter[0], y/2], [hg + offCenter[0], y/2+gap], 
             [x/2+gap, y/2+gap], [x/2+gap, hg],[x/2,hg]]
-    btr = cad.core.Boundary(ptr, layer=layer)
 
     #bottom Left
     pbl = [[-x/2, -hg], [-x/2, -y/2], [-ocb-hg, -y/2], [-ocb-hg, -y/2-gap],
             [-x/2-hg, -y/2-gap], [-x/2-gap, -y/2-gap], [-x/2-gap, -hg], [-x/2, -hg]]
-    bbl = cad.core.Boundary(pbl, layer=layer)
 
     #bottom right
     pbr = [[x/2, -hg], [x/2, -y/2], [ocb+hg, -y/2], [ocb+hg, -y/2-gap],
             [x/2+hg, -y/2-gap], [x/2+gap, -y/2-gap], [x/2+gap, -hg], [x/2, -hg]]
-    bbr = cad.core.Boundary(pbr, layer=layer)
 
     #bottom center
-    bbc = cad.shapes.Rectangle((-ocb+hg, -y/2-gap),(ocb-hg, -y/2), layer=layer)
-
-    BC.add([btl, btr, bbl, bbr, bbc])
+    for layer in layers:
+        btl = cad.core.Boundary(ptl, layer=layer)
+        btr = cad.core.Boundary(ptr, layer=layer)
+        bbl = cad.core.Boundary(pbl, layer=layer)
+        bbr = cad.core.Boundary(pbr, layer=layer)
+        bbc = cad.shapes.Rectangle((-ocb+hg, -y/2-gap),(ocb-hg, -y/2), layer=layer)
+        BC.add([btl, btr, bbl, bbr, bbc])
 
     return BC
 
 
 
-def MMPXEdge(coords, vias=True, layer=1, rot=0):
+def MMPXEdge(coords, vias=True, layers=[0,1], rot=0, connectorShape=True):
     '''
     MMPX Edge Connector
     '''
@@ -2052,8 +2000,17 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
     PXCell = cad.core.Cell('MMPX')
 
     x, y = defaults['MMPXEdge']
-    r = cad.shapes.Rectangle((-x/2,-y/2),(x/2,y/2), layer=layer)
-    PXCell.add(r)
+    extrax = (defaults['MMPXTopWidth'] - x)/2
+    
+    for l in layers:
+        r = cad.shapes.Rectangle((-x/2,-y/2),(x/2,y/2), layer=l)
+        PXCell.add(r)
+
+    if connectorShape:
+        cc = mmpxConnect()
+        cc.translate((0, -y/2))
+        PXCell.add(cc)
+
 
     if not vias:
         #translate, rotate
@@ -2066,24 +2023,31 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
         viaLocs = []
         ivD = defaults['interviaDistance']
         vhD = defaults['viaHorizDistance']
-        mhE = defaults['MMPXOverlapWidth']
         #vertical part
-        x1 = -x/2 - mhE - vhD
+        x1 = -x/2 - vhD
         ylocs = np.arange(-y/2-vhD,y/2,ivD)
-        for y in ylocs:
-            viaLocs.append([x1,y])
-            viaLocs.append([-x1,y])
-            v1, v2 = Via((x1,y)), Via((-x1,y))
+        for ys in ylocs:
+            viaLocs.append([x1,ys])
+            viaLocs.append([-x1,ys])
+            v1, v2 = Via((x1,ys)), Via((-x1,ys))
             PXCell.add([v1,v2])
         #horizontal part
         y1 = ylocs[0]
         xlocs1 = np.arange(-x/2-vhD+ivD, -b1-vhD-ivD, ivD)
         xlocs2 = np.arange(x/2+vhD-ivD, b1+vhD+ivD, -ivD)
         xlocs = np.hstack((xlocs1,xlocs2))
-        for x in xlocs:
-            viaLocs.append([x,y1])
-            v1 = Via([x,y1])
+        for xs in xlocs:
+            viaLocs.append([xs,y1])
+            v1 = Via([xs,y1])
             PXCell.add(v1)
+
+        if connectorShape:
+            wideWidth = 1200*um #also set in mmpxConnect below
+            locs = [wideWidth/2+vhD, -y/2-vhD]
+            viaLocs.extend([[-locs[0],locs[1]],[locs[0],locs[1]]])
+            v1 = Via(locs)
+            v2 = Via([-locs[0], locs[1]])
+            PXCell.add([v1, v2])
 
 
         #translate, rotate
@@ -2091,6 +2055,47 @@ def MMPXEdge(coords, vias=True, layer=1, rot=0):
         PXCellr = cad.core.CellReference(PXCell, rotation=rot)
         PXCellr.translate(coords)
         return PXCellr, viaLocsR
+
+def mmpxConnect():
+    '''
+    Design by Einar Magnusson
+    zeropoint is at the bottom center
+    '''
+
+    MC = cad.core.Cell('MMPXCONNECT')
+
+    pcCenter = defaults['PCBcenter']
+    pcGap = defaults['PCBgap']
+    ml = defaults['MMPXConnectLen']
+    
+    preGap = 100*um
+    wideStart = 330*um
+    wideWidth = 1200*um
+    wideLen = 360*um
+    xtraWidth = 609*um
+    tapLen = 310*um
+
+    if wideLen+wideStart+tapLen != ml:
+        raise Exception, 'the settings in maskDesign.mmpxConnect are not commensurate with the MMPXConnectLen default setting defined in defaultParms and used in PCBClass.EdgeMMMPX'
+
+    points = [[-xtraWidth/2,0],[-xtraWidth/2, wideStart],[-wideWidth/2, wideStart],
+            [-wideWidth/2, wideStart+wideLen], [-pcGap/2, wideStart+wideLen+tapLen],
+            [-pcCenter/2, wideStart+wideLen+tapLen],[-pcCenter/2, preGap],
+            [pcCenter/2, preGap],
+            [pcCenter/2, wideStart+wideLen+tapLen],[pcGap/2, wideStart+wideLen+tapLen],
+            [wideWidth/2, wideStart+wideLen],[wideWidth/2, wideStart], [xtraWidth/2,wideStart],
+            [xtraWidth/2, 0], [-xtraWidth/2, 0]]
+
+    bound = cad.core.Boundary(points)
+    MC.add(bound)
+
+
+    MCr = cad.core.CellReference(MC, rotation=180)
+    return MCr
+
+
+
+
 
 def CPWroutePCB(coords, dx, dy, chipWidth=.5*mm, bridges=False, vias=True, rot=0, endrot=0):
     '''

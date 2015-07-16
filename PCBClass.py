@@ -19,7 +19,7 @@ defaults = dpars.dPars()
 
 class PCB:
 
-    def __init__(self, PCBSize=30*mm, shape=2, mmpxLocs=[4,0,0,0],chipSize = (10*mm,5*mm), chipLocation=(0,0), chipConfig='D', chipRot=90):
+    def __init__(self, PCBSize=30*mm, shape=2, mmpxLocs=[4,0,0,0],chipSize = (10*mm,5*mm), chipLocation=(0,0), chipConfig='D', PCBOffCenter=(0,0), waveguideDimensions=(3*mm, 2.5*mm), chipRot=90):
         '''
         constructor of the PCB class
 
@@ -46,6 +46,7 @@ class PCB:
         self.chipConfig = chipConfig
         self.offCenters = offCenters
         self.chipRot = 90
+        self.chipLocation = chipLocation
 
         #mmpx positions: a list for shape 2 or a number for shape 1
         self.mmpxLocs = mmpxLocs
@@ -54,6 +55,7 @@ class PCB:
         self.viaPositions = []
         self.screwPositions = []
         self.PCBOffCenter = PCBOffCenter
+        self.waveguideDimensions = waveguideDimensions
         
         #components
         self.CPWs = 0
@@ -65,7 +67,7 @@ class PCB:
         
         #Initialize
         self.initPCB()
-        self.addChip(chipLocation)
+        self.addChip()
 
 
     def initPCB(self):
@@ -95,21 +97,21 @@ class PCB:
         '''
         mmpx = number of mmpx connectors for each side (clockwise from 12)
         '''
-        shapeCell = md.PCBShape2(self.size)
+        shapeCell = md.PCBShape2(self.size, offCenter=self.PCBOffCenter)
         self.topCell.add(shapeCell)
         self.addEdgeMMPXs()
 
 
-    def addChip(self, placeInfo = (0,0), vias=True):
+    def addChip(self, vias=True):
         '''
-        adds a chip at placeInfo
+        adds a chip 
         according to properties already set in the PCB class
         '''
 
         print 'adding a chip to the PCB'
 
         self.chips += 1
-        setattr(self, 'Chip'+str(self.chips), Chip(self, placeInfo, vias=vias))
+        setattr(self, 'Chip'+str(self.chips), Chip(self, self.chipLocation, self.waveguideDimensions, vias=vias))
 
 
     def addScrewHole(self, coords):
@@ -140,8 +142,10 @@ class PCB:
             num = self.mmpxLocs[i]
             if num == 0:
                 continue
-            dis = (px)/(num)
-            xs = np.arange(-(num-1)*dis/2, dis/2 + (num-1)*dis/2, dis)
+            #dis = (px)/(num)
+            #xs = np.arange(-(num-1)*dis/2, dis/2 + (num-1)*dis/2, dis)
+            dx = (px-num*mx)/(num+1) 
+            xs = np.arange(-px/2+dx+mx/2,  px/2, dx+mx)
             y = (py-my)/2*(1-i) 
             crot = 90*(-i)
             for x in xs:
@@ -168,7 +172,7 @@ class PCB:
         '''
 
         self.MMPXs += 1
-        setattr(self, 'mmpxEdge'+str(self.MMPXs), EdgeMMPX(self, placeInfo, rot=rot))
+        setattr(self, 'mmpxEdge'+str(self.MMPXs), EdgeMMPX(self, placeInfo, connectorShape=True, rot=rot))
 
 
 
@@ -354,7 +358,8 @@ class PCB:
             xlist = [x1s, x2s][counter%2]
             counter += 1
             for x in xlist:
-                rcoords = np.array([x,y]) #+ np.random.random(2)*[rvD, rvD]
+                rcoords = [x,y] # + np.random.random(2)*[rvD, rvD]
+                #rcoords = np.array([x,y]) #+ np.random.random(2)*[rvD, rvD]
                 if not self.Forbidden(rcoords):
                     newVia = md.Via(rcoords)
                     rViaCell.add(newVia)
@@ -393,8 +398,11 @@ class PCB:
             cchip = getattr(self, 'Chip'+str(c))
             cx, cy = cchip.coords
             crot = cchip.rot
-            if abs(x-cx/2) < (abs(np.cos(rad(crot))*chipSize[0]/2) + abs(np.sin(rad(crot))*chipSize[1]/2)) + 2*ihD:
-                if abs(y-cy/2) < (abs(np.cos(rad(crot))*chipSize[1]/2) + abs(np.sin(rad(crot))*chipSize[0]/2)) + 2*ihD:
+            #if abs(x-cx/2) < (abs(np.cos(rad(crot))*chipSize[0]/2) + abs(np.sin(rad(crot))*chipSize[1]/2)) + 2*ihD:
+            #    if abs(y-cy/2) < (abs(np.cos(rad(crot))*chipSize[1]/2) + abs(np.sin(rad(crot))*chipSize[0]/2)) + 2*ihD:
+            #        return True
+            if abs(x-cx) < (abs(np.cos(rad(crot))*chipSize[0]/2) + abs(np.sin(rad(crot))*chipSize[1]/2)) + 2*ihD:
+                if abs(y-cy) < (abs(np.cos(rad(crot))*chipSize[1]/2) + abs(np.sin(rad(crot))*chipSize[0]/2)) + 2*ihD:
                     return True
         
         #check for other vias:
@@ -449,7 +457,7 @@ class PCB:
 
 class Chip:
 
-    def __init__(self, PCBX, placeInfo, vias):
+    def __init__(self, PCBX, placeInfo, waveguideDimensions, vias):
 
         #properties
         self.coords = placeInfo
@@ -457,11 +465,16 @@ class Chip:
         self.rot = PCBX.chipRot
         self.launcherConfig = PCBX.chipConfig
         self.vias = vias
+        self.chipMargin = defaults['PCBChipMargin']
+        self.totChipSize = (self.chipSize[0]+self.chipMargin, self.chipSize[1]+self.chipMargin)
+
+        print 'adding a chip of size ', self.chipSize, ' with a margin of ', self.chipMargin
 
         #connectors
         posNoAngle = []
         offs = PCBX.offCenters[self.launcherConfig]
-        borX, borY = self.chipSize
+        borX, borY = self.totChipSize
+        x,y = self.coords
         if self.launcherConfig == 'D':
             offX1, offX2 = offs
             #get all the positions
@@ -469,8 +482,8 @@ class Chip:
             print 'posNoAngle is ', posNoAngle
             #rotation
             phi = rad(self.rot)
-            pos = [[c[0]*np.cos(phi)+c[1]*np.sin(phi), 
-                c[1]*np.cos(phi)-c[0]*np.sin(phi),c[2]+self.rot] for c in posNoAngle]
+            pos = [[c[0]*np.cos(phi)+c[1]*np.sin(phi)+x, 
+                c[1]*np.cos(phi)-c[0]*np.sin(phi)+y,c[2]+self.rot] for c in posNoAngle]
             for i in range(len(pos)):
                 setattr(self, 'connect'+str(i), pos[i])
             
@@ -479,10 +492,10 @@ class Chip:
 
         #draw and add Cell
         if self.vias:
-            self.Cell, viaLocs = md.PCBchip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
+            self.Cell, viaLocs = md.PCBchip(self.coords, self.totChipSize, vias=self.vias, waveguideDimensions=waveguideDimensions, rot=self.rot)
             PCBX.viaPositions.extend(viaLocs)
         else:
-            self.Cell = md.PCBchip(self.coords, self.chipSize, vias=self.vias, rot=self.rot)
+            self.Cell = md.PCBchip(self.coords, self.totChipSize, vias=self.vias, waveguideDimensions=waveguideDimensions, rot=self.rot)
         PCBX.topCell.add(self.Cell)
 
 
@@ -501,7 +514,7 @@ class ScrewHole:
 
 class EdgeMMPX:
 
-    def __init__(self, PCBX, placeInfo, vias=True, rot=0):
+    def __init__(self, PCBX, placeInfo, vias=True, connectorShape=True, rot=0):
         '''
         initialize an MMPX Edge connector
         '''
@@ -511,13 +524,16 @@ class EdgeMMPX:
         self.rot = rot
         self.vias = vias
 
+        #get default values
+        ml = defaults['MMPXConnectLen']
+
         #make the cell
         mx, my = defaults['MMPXEdge']
         self.connect = (self.coords[0] + my/2*np.sin(rad(self.rot)),
-            self.coords[1] - my/2*np.cos(rad(self.rot)))
+            self.coords[1] - my/2*np.cos(rad(self.rot)) - ml*np.cos(rad(self.rot)))
 
         #draw and add the cell
-        self.Cell, viaLocs = md.MMPXEdge(self.coords, rot=self.rot)
+        self.Cell, viaLocs = md.MMPXEdge(self.coords, rot=self.rot, connectorShape=connectorShape)
         PCBX.viaPositions.extend(viaLocs)
         PCBX.topCell.add(self.Cell)
 
