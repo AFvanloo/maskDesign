@@ -350,9 +350,9 @@ class PCB:
         rViaCell = cad.core.Cell('RANDOMVIA')
 
         #pick a random starting spot:
-        x1s = np.arange(-PCBSize[0]/2+rvD/2,PCBSize[0]/2-ihD, rvD)
-        x2s = np.arange(-PCBSize[0]/2+rvD,PCBSize[0]/2-ihD, rvD)
-        ys = np.arange(-PCBSize[1]/2+rvD/2,PCBSize[1]/2-ihD, np.cos(rad(30))*rvD)
+        x1s = np.arange(-PCBSize[0]/2+3*rvD/2, PCBSize[0]/2-ihD, rvD)
+        x2s = np.arange(-PCBSize[0]/2+rvD, PCBSize[0]/2-ihD, rvD)
+        ys = np.arange(-PCBSize[1]/2+rvD/2, PCBSize[1]/2-ihD, np.cos(rad(30))*rvD)
         counter=0
         for y in ys:
             xlist = [x1s, x2s][counter%2]
@@ -398,12 +398,25 @@ class PCB:
             cchip = getattr(self, 'Chip'+str(c))
             cx, cy = cchip.coords
             crot = cchip.rot
-            #if abs(x-cx/2) < (abs(np.cos(rad(crot))*chipSize[0]/2) + abs(np.sin(rad(crot))*chipSize[1]/2)) + 2*ihD:
-            #    if abs(y-cy/2) < (abs(np.cos(rad(crot))*chipSize[1]/2) + abs(np.sin(rad(crot))*chipSize[0]/2)) + 2*ihD:
-            #        return True
+            #main chip body
             if abs(x-cx) < (abs(np.cos(rad(crot))*chipSize[0]/2) + abs(np.sin(rad(crot))*chipSize[1]/2)) + 2*ihD:
                 if abs(y-cy) < (abs(np.cos(rad(crot))*chipSize[1]/2) + abs(np.sin(rad(crot))*chipSize[0]/2)) + 2*ihD:
                     return True
+                if self.waveguideDimensions != None:
+                    #This is adding the waveguide parts to forbidden
+                    wD = self.waveguideDimensions
+                    #part one, left of the horizontal chip when not rotated
+                    wx1 = cx - np.cos(rad(crot))*chipSize[0]/2 - np.cos(rad(crot))*wD[0]/2
+                    wy1 = cy + np.sin(rad(crot))*chipSize[0]/2 + np.sin(rad(crot))*wD[0]/2
+                    if abs(x-wx1) < (abs(np.cos(rad(crot))*wD[0]/2) + abs(np.sin(rad(crot))*wD[1]/2)) + ihD:
+                        if abs(y-wy1) < (abs(np.cos(rad(crot))*wD[1]/2) + abs(np.sin(rad(crot))*wD[0]/2)) + ihD:
+                            return True
+                    #part two, right of the horizontal chip when not rotated
+                    wx2 = cx + np.cos(rad(crot))*chipSize[0]/2 + np.cos(rad(crot))*wD[0]/2
+                    wy2 = cy - np.sin(rad(crot))*chipSize[0]/2 - np.sin(rad(crot))*wD[0]/2
+                    if abs(x-wx2) < (abs(np.cos(rad(crot))*wD[0]/2) + abs(np.sin(rad(crot))*wD[1]/2)) + ihD:
+                        if abs(y-wy2) < (abs(np.cos(rad(crot))*wD[1]/2) + abs(np.sin(rad(crot))*wD[0]/2)) + ihD:
+                            return True
         
         #check for other vias:
         for i in range(len(self.viaPositions)):
@@ -411,7 +424,7 @@ class PCB:
             if np.sqrt(np.power((x-vx),2)+np.power((y-vy),2)) < 2*ihD:
                 return True
 
-        #check for other screwHolesvias:
+        #check for screwHoles:
         for i in range(len(self.screwPositions)):
             sx, sy = self.screwPositions[i]
             if np.sqrt(np.power((x-sx),2)+np.power((y-sy),2)) < sd/2+ihD:
