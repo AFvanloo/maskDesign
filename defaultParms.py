@@ -26,8 +26,11 @@ def dLists():
     #offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
     #    'C' : (925*um, 2775*um, 875*um, 2625*um)} '''
 
-    offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
-            'C' : (925*um, 2775*um, 875*um, 2625*um), 'D' : (3990*um, 1330*um), 'E' : 3990*um} 
+    offCenters = {'A' : 2470*um, 
+            'B' : (2470*um, 1170*um, 2300*um), 
+            'C' : (925*um, 2775*um, 875*um, 2625*um), 
+            'D' : (3990*um, 1330*um), 
+            'E' : 3990*um} 
 
     # entry 3 and 4: third number is distance form left center to left upper launcher
     #last entry, last 4 numbers: vertical distances, then horizontal distances
@@ -40,8 +43,8 @@ def dPars():
     populate and return a dictionary with default design values
     '''
 
-    defDict = {'centerConductor'    : 10*um,
-            'CPWGap'                : 19*um,
+    defDict = {'centerConductor'    : 10*um,    #beware, this is 2a or W in the literature
+            'CPWGap'                : 19*um,    #Beware, this is 2b or W+2S in the literature
             'minimumRadius'         : 100*um,   #Minimum radius for bends (rbend)
             'borderGap'             : 600*um,   #Gap between chips
             'posResEdge'            : 20*um,    #border edge thickness for posRes chips
@@ -84,15 +87,19 @@ def dPars():
             'MMPXTopWidth'          : 4.5*mm,
             'MMPXConnectLen'        : 1000*um,
             'MMPXOverlapWidth'      : .5*mm,     #half a mm overlap with PCB on each side
-            'PCBcenter'             : .382*mm,                #parameters for PCB CPWs
-            'PCBgap'                : .58*mm,
+            'PCBcenter'             : .382*mm,  #This is 2a or W in the literature
+            'PCBgap'                : .58*mm,   #This is 2b or W+2S in the literature
             'PCBChipMargin'         : .5*mm,    #total maring: half of this is added to each side
             'PCBScrewHole'          : 2.7*mm,
             'PCBrbend'              : 1*mm,     #minimum bend radius
-            'viaDiameter'           : .5*mm,                 
-            'interviaDistance'      : 1*mm,
-            'viaHorizDistance'      : .5*mm,
-            'randomViaDistance'     : 2*mm}     #distance between randomly placed vias
+            'viaDiameter'           : .004*mm,                 
+            'interviaDistance'      : .008*mm,
+            'viaHorizDistance'      : .0195*mm,
+            'randomViaDistance'     : .2*mm}     #distance between randomly placed vias
+ #           'viaDiameter'           : .5*mm,                 
+ #           'interviaDistance'      : 1*mm,
+ #           'viaHorizDistance'      : .79*mm,
+ #           'randomViaDistance'     : 2*mm}     #distance between randomly placed vias
 
     return defDict
 

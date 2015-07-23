@@ -188,15 +188,15 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
     if not vias:
         cpwCellr = cad.core.CellReference(cpwCell,rotation=rot)
         cpwCellr.translate(coords)
-        return cpwCellr
+        return cpwCellr, []
 
     else:
         print 'fault is in CPW somewhere'
         #Cell for vias
-        pb1 = defaults['PCBgap']
+        #pb1 = defaults['PCBgap']
         viaCell = cad.core.Cell('VIA')
         xloc = interviaDistance/2.
-        y = pb1/2+viaHorizDistance
+        y = viaHorizDistance
         viaLocs = []
 
         #generate locations:
@@ -245,7 +245,7 @@ def CPWArc(coords,initangle=270,degrees=90,
     if not vias:
         arcCellr = cad.core.CellReference(arcCell,rotation=rot)
         arcCellr.translate(coords)
-        return arcCellr
+        return arcCellr, []
 
     else:
         #cal len of arc
@@ -762,7 +762,7 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
         texts = cad.shapes.Label(text,fontsize,coords,layer=layer)
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
-        texts.add_text(text,font.add(texts))
+        texts.add_text(text, font)
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -835,7 +835,7 @@ def doubleArc(coords, dy, rbend = 100*um, center=a1, gap=b1, vias=False, rot=0):
 
 
 def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
-        bridges=False, center=a1, gap=b1, rot=0):
+        bridges=False, center=a1, gap=b1, vias=False, rot=0):
     '''
     Makes a CPW line with connected arcs of total yspan as indicated
     If exit and enter are True, a quarter circle bend is generated at the end
@@ -849,21 +849,23 @@ def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
     vstart = 0.
     vlen = float(vlen)
 
+    viaLocs = []
+
     #Arcs
     if enter:
         if reflect:
-            enArc = CPWArc((-rbend,yspan/2.-rbend), initangle = 0., radius=rbend, center=center, gap=gap)
+            enArc, viaLocs1 = CPWArc((-rbend,yspan/2.-rbend), initangle = 0., radius=rbend, center=center, gap=gap, vias=vias)
         else:
-            enArc = CPWArc((-rbend,-yspan/2.+rbend),radius=rbend, center=center, gap=gap)
+            enArc, viaLocs1 = CPWArc((-rbend,-yspan/2.+rbend),radius=rbend, center=center, gap=gap, vias=vias)
         vstart += rbend/2.
         vlen -= rbend
         sLineCell.add(enArc)
 
     if exit:
         if reflect:
-            exArc = CPWArc((rbend,-yspan/2.+rbend),initangle =180., radius=rbend, center=center, gap=gap)
+            exArc, viaLocs2 = CPWArc((rbend,-yspan/2.+rbend),initangle =180., radius=rbend, center=center, gap=gap, vias=vias)
         else:
-            exArc = CPWArc((rbend,yspan/2.-rbend),initangle =90., radius=rbend, center=center, gap=gap)
+            exArc, viaLocs2 = CPWArc((rbend,yspan/2.-rbend),initangle =90., radius=rbend, center=center, gap=gap, vias=vias)
         vlen -= rbend
         vstart -= rbend/2.
         sLineCell.add(exArc)
@@ -871,17 +873,22 @@ def sLine(coords,yspan,rbend=100.*um,enter=True,exit=True,reflect=False,
     
     #straight piece
     if reflect:
-        vPiece = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, rot=90.)
+        vPiece, viaLocs3 = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, vias=vias, rot=90.)
     else:
-        vPiece = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, rot=90.)
+        vPiece, viaLocs3 = CPW((0,vstart),vlen, bridges = bridges, center=center, gap=gap, vias=vias, rot=90.)
     #add to cell
     sLineCell.add(vPiece)
    
+    if vias:
+        viaLocs = viaLocs1 + viaLocs2 + viaLocs3
+        #rotate and translate vias
+        viaLocs = transRotVias(viaLocs, trans=coords, rot=rot)
+    
     #rotate, translate
     sLineCellr = cad.core.CellReference(sLineCell, rotation=rot)
     sLineCellr.translate(coords)
 
-    return sLineCellr
+    return sLineCellr, viaLocs
 
 def jLine(coords, totlen, xspan, yspan, nWiggles, rbend=100*um, bridges= True, rot = 0):
         '''
@@ -925,13 +932,15 @@ def jLine(coords, totlen, xspan, yspan, nWiggles, rbend=100*um, bridges= True, r
 
 def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
         center=10.*um,gap=19.*um,yOffset=0.,xOffset=0., skew=0, closeA = False,
-        closeB= False, rot=0.):
+        closeB= False, vias=False, rot=0.):
     '''
     make a wiggled transmission line. 
     This function uses CPW and sLine
 
     Returns the wiggle Cell and yspan
     '''
+
+    viaLocs = []
 
     print 'generating a wiggle pattern'
     #SelfChecks
@@ -966,37 +975,43 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     wiggleCell = cad.core.Cell('WIGGLE')
 
     #left part of straight
-    leftLine = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA, center=center, gap=gap)
-    rightLine = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB, center=center, gap=gap)
+    leftLine, viaLocsL = CPW((-xspan/2.+straightx/4+xOffset/2.,-skew),straightx/2.+xOffset, closeA=closeA, center=center, gap=gap, vias=vias)
+    rightLine, viaLocsR = CPW((xspan/2.-straightx/4.+xOffset/2.,skew),straightx/2.-xOffset, closeB=closeB, center=center, gap=gap, vias=vias)
+    
+
     wiggleCell.add([leftLine,rightLine])
     totlenc += straightx
 
     #enter and exit arc
-    enArc = sLine((-xspan/2.+straightx/2.+xOffset+rbend,-skew/2+yspan/2.+yOffset/2.),yspan+yOffset+skew, center=center, gap=gap)
-
+    enArc, viaLocsEn = sLine((-xspan/2.+straightx/2.+xOffset+rbend,-skew/2+yspan/2.+yOffset/2.),yspan+yOffset+skew, center=center, gap=gap, vias=vias)
     totlenc += np.pi*rbend+yspan + skew-2.*rbend+yOffset
     if nwiggle%2==0:
-        exArc = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2*rbend+rbend,
-            -yspan/2.+yOffset/2.+skew/2.),yspan-yOffset + skew, center=center, gap=gap)
+        exArc, viaLocsEx = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2*rbend+rbend,
+            -yspan/2.+yOffset/2.+skew/2.),yspan-yOffset + skew, center=center, gap=gap, vias=vias)
         totlenc += np.pi*rbend +yspan + skew-2*rbend-yOffset
     else:
-        exArc = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2.*rbend+rbend,
-            yspan/2.+yOffset/2.+skew/2.), yspan+yOffset-skew, center=center, gap=gap, reflect=True)
+        exArc, viaLocsEx = sLine((-xspan/2.+straightx/2.+xOffset+nwiggle*2.*rbend+rbend,
+            yspan/2.+yOffset/2.+skew/2.), yspan+yOffset-skew, center=center, gap=gap, vias=vias, reflect=True)
         totlenc += np.pi*rbend + yspan - skew + yOffset - 2.*rbend
     wiggleCell.add([enArc,exArc])
     
     #Wiggles in between
     for i in range(nwiggle-1):
         if i%2==1:
-            wiggle = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
-                yOffset),2.*yspan, center=center, gap=gap)
+            wiggle, viaLocsS = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
+                yOffset),2.*yspan, center=center, gap=gap, vias=vias)
         else:
-            wiggle = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
-                yOffset),2.*yspan,center=center, gap=gap, reflect=True)
+            wiggle, viaLocsS = sLine((-xspan/2.+straightx/2.+xOffset+2.*rbend*(i+1)+rbend,
+                yOffset),2.*yspan,center=center, gap=gap, vias=vias, reflect=True)
         wiggleCell.add([wiggle])
         totlenc += 2*(yspan-rbend)+np.pi*rbend
 
     print 'SelfCheck: total length is ', totlenc, ', wile it was supposed to be ', totlen
+
+    if vias: 
+        viaLocs = viaLocsL + viaLocsR + viaLocsEn + viaLocsEx + viaLocsS
+        #rotate and translate vias
+        viaLocs = transRotVias(viaLocs, trans=coords, rot=rot)
 
     #rotate and translate
     wiggleCellr = cad.core.CellReference(wiggleCell,rotation=rot)
@@ -1004,7 +1019,7 @@ def nWiggle(coords,totlen,xspan,nwiggle,rbend=100.*um,
     #wiggleCellr.translate((0,100))
     wiggleCellr.translate(coords)
     
-    return wiggleCellr, yspan
+    return wiggleCellr, yspan, viaLocs
 
 def CPWroute(coords, dx, dy, bridges = True, rot=0, endrot=0, PCB=False):
     '''
@@ -1937,7 +1952,7 @@ def PCBchip(coords, chipSize, chipType='D', vias=True, rot=0, waveguideDimension
 
     #vias:
     if vias:
-        viaCell, viaLocs = chipVias(chipSize, coords, chipType, rot)
+        viaCell, viaLocs = chipVias(chipSize, coords, chipType, waveguideDimensions, rot)
         CC.add(viaCell)
 
     #rotate, translate
@@ -2024,7 +2039,7 @@ def MMPXEdge(coords, vias=True, layers=[0,1], rot=0, connectorShape=True):
         ivD = defaults['interviaDistance']
         vhD = defaults['viaHorizDistance']
         #vertical part
-        x1 = -x/2 - vhD
+        x1 = -x/2 - 2*vhD
         ylocs = np.arange(-y/2-vhD,y/2,ivD)
         for ys in ylocs:
             viaLocs.append([x1,ys])
@@ -2043,7 +2058,7 @@ def MMPXEdge(coords, vias=True, layers=[0,1], rot=0, connectorShape=True):
 
         if connectorShape:
             wideWidth = 1200*um #also set in mmpxConnect below
-            locs = [wideWidth/2+vhD, -y/2-vhD]
+            locs = [wideWidth/2+1.5*vhD, -y/2-vhD]
             viaLocs.extend([[-locs[0],locs[1]],[locs[0],locs[1]]])
             v1 = Via(locs)
             v2 = Via([-locs[0], locs[1]])
@@ -2220,7 +2235,7 @@ def arcVias(initAngle, degrees, radius, center, gap):
     '''
 
     VA = cad.core.Cell('ARCVIA')
-    vhD = defaults['PCBgap']/2+defaults['viaHorizDistance']
+    vhD = defaults['viaHorizDistance']
     ivD = defaults['interviaDistance']
     posList = []
 
@@ -2248,7 +2263,7 @@ def arcVias(initAngle, degrees, radius, center, gap):
     return VA, posList
 
 
-def chipVias(chipSize, coords, chipType, rot):
+def chipVias(chipSize, coords, chipType, waveguideDimensions, rot):
 
     #make cell, define constants
     VA = cad.core.Cell('ARCVIA')
@@ -2264,14 +2279,25 @@ def chipVias(chipSize, coords, chipType, rot):
         raise Exception, 'Automatic via allocation to chip is only implemented for chipType D'
 
     #sides
-    ynums = np.round(y/ivD)
-    ydis = y/(ynums-1)
-    ys = np.arange(-y/2+ydis, y/2, ydis)
-    for yn in ys:
-        posList.extend([[-xv/2, yn],[xv/2, yn]])
-        VA.add(Via([-xv/2, yn]))
-        VA.add(Via([xv/2, yn]))
-    
+    if waveguideDimensions == None:
+        ynums = np.round(y/ivD)
+        ydis = y/(ynums-1)
+        ys = np.arange(-y/2+ydis, y/2, ydis)
+        for yn in ys:
+            posList.extend([[-xv/2, yn],[xv/2, yn]])
+            VA.add(Via([-xv/2, yn]))
+            VA.add(Via([xv/2, yn]))
+    else:
+        #find corners
+        wx, wy = waveguideDimensions
+        corners = [[-x/2-vhD, wy/2+vhD], [-x/2-vhD, -wy/2-vhD], [x/2+vhD, wy/2+vhD], [x/2+vhD, -wy/2-vhD]]
+        posList.extend(corners)
+        for c in corners:
+            VA.add(Via(c))
+        #sides
+
+
+        
     #place 1 via between each 2 connectors:
     a, offCenters = dLists
     oC = offCenters['D'] 

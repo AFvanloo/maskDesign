@@ -19,7 +19,7 @@ defaults = dpars.dPars()
 class Sample:
 
     def __init__(self, border, launcherConfig='A', launcherPositions=[],
-            alignPos=range(4), label = '', labelPos = None, labelFontSize=None):
+            alignPos=range(4), label = '', labelPos = None, labelFontSize=None, borderGap=None):
         '''
         Calling constructor
 
@@ -53,7 +53,10 @@ class Sample:
         #Sample border Options
         self.borders = borderTagList[border]
         self.borderTag = border
-        self.borderGap = defaults['borderGap']
+
+        if borderGap == None:
+            self.borderGap = defaults['borderGap']
+        self.borderGap = borderGap
 
         #launcher options
         self.launcherPositions = launcherPositions
@@ -133,10 +136,12 @@ class Sample:
         self.thinTennas = 0
         self.newname = ''
         
+        #Keep track of via positions
+        self.viaPositions = []
 
         #Start Constructing the Sample
         print 'border type is ', border 
-        if (border < 1) or (border > 4):
+        if (border < 1) or (border > 6):
             raise Exception, 'Choose border between 1 and 4'
             #If using python 3, replace with following line
             #raise Exception('Choose border between 1 and 4')
@@ -166,7 +171,7 @@ class Sample:
 #========================sampleX wrappers for objects===========================
 
     def addCPW(self, leng, placeInfo, bridges=False, bridgeDistance= None,
-            bridgeStart=None, bridgeEnd=None, closeA=False, closeB=False, flip=False, rot=0, name = None):
+            bridgeStart=None, bridgeEnd=None, closeA=False, closeB=False, flip=False, rot=0, vias=False, name = None):
         '''
         add a CPW line
 
@@ -199,7 +204,7 @@ class Sample:
         #Keep track of the number of lines
         self.CPWs +=1
         setattr(self, name if name else 'CPW'+str(self.CPWs), CPW(self,leng, placeInfo, bridges,
-            bridgeDistance, bridgeStart, bridgeEnd, closeA, closeB, flip, rot))
+            bridgeDistance, bridgeStart, bridgeEnd, closeA, closeB,vias, flip, rot))
 
     def addArc(self, initAngle, degrees, placeInfo, flip=False, rbend=None, name = None,
             rot=0):
@@ -278,7 +283,7 @@ class Sample:
 
     def addWiggle(self, nWiggle, leng, xspan, placeInfo, xOffset=0,
             yOffset=0, skew=0, rbend = None, bridges=True, closeA = False, closeB =
-            False, rot=0, name = None):
+            False, rot=0, vias=False, name = None):
         '''
         Add a wiggly CPW
 
@@ -298,7 +303,7 @@ class Sample:
         self.wiggles += 1
         setattr(self,  name if name else 'wiggle'+str(self.wiggles), Wiggle(self,nWiggle, leng,
             xspan, placeInfo, xOffset, yOffset, skew, rbend, bridges, closeA,
-            closeB, rot))
+            closeB, vias, rot))
 
         
     def addSLine(self, yspan, placeInfo, rbend = None, reflect=False,
@@ -928,7 +933,7 @@ class Taper:
 class CPW:
 
     def __init__(self, sampleX, leng, placeInfo, bridges, bridgeDistance, bridgeStart,
-            bridgeEnd, closeA, closeB, flip, rot):
+            bridgeEnd, closeA, closeB, vias, flip, rot):
         '''
         Initialize the object
         '''
@@ -943,6 +948,15 @@ class CPW:
         self.closeB = closeB
         self.flip = flip
         
+        #vias stuff
+        self.vias = vias
+        self.viaDiameter=defaults['viaDiameter']
+        self.interviaDistance = defaults['interviaDistance']
+        self.viaHorizDistance = defaults['viaHorizDistance']
+ 
+
+
+
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
             #its a connection: get the coordinates!
@@ -971,6 +985,10 @@ class CPW:
   #      if bridges:
   #          self.addBridges()
   #          sampleX.topCell.add(self.ABCellr)
+        if self.vias:
+            sampleX.viaPositions.extend(self.viapos)
+        #else:
+        #    self.Cell = self.makeCell(sampleX)
 
         print 'self.a1 is ', sampleX.a1
 
@@ -982,11 +1000,16 @@ class CPW:
         make the cad Cell reference of the CPW
         '''
         print 'drawing a CPW of ', self.leng/1e6, ' mm long' 
-        self.Cell = md.CPW(self.coords,self.leng, center=sampleX.a1,
+        cellInfo = md.CPW(self.coords,self.leng, center=sampleX.a1,
                 gap=sampleX.a1*sampleX.abr, closeA =
                 self.closeA, closeB = self.closeB, bridges=self.bridges, 
+                vias=self.vias,
                 bridgeDistance= self.bridgeDistance, 
                 bridgeStart=self.bridgeStart, bridgeEnd=self.bridgeEnd,rot=self.rot)
+        if self.vias:
+            self.Cell, self.viapos = cellInfo
+        else:
+            self.Cell = cellInfo
 #
 #    def addBridges(self):
 #
@@ -1268,7 +1291,7 @@ class JLine:
 class Wiggle:
     
     def __init__(self, sampleX, nWiggles, leng, xspan, placeInfo, xOffset,
-            yOffset, skew, rbend, bridges, closeA, closeB, rot):
+            yOffset, skew, rbend, bridges, closeA, closeB, vias, rot):
         '''
         Construct a Wiggles
         '''
@@ -1284,7 +1307,10 @@ class Wiggle:
         self.skew = skew
         self.closeA = closeA
         self.closeB = closeB
+        self.vias = vias
         self.rot = rot
+
+        self.viaLocs = []
         
         #Decide if we have coordinates or connection
         if type(placeInfo) == str:
@@ -1314,14 +1340,18 @@ class Wiggle:
         #add Wigglecell to topCell
         sampleX.topCell.add(self.Cellr)
 
+        if self.vias:
+            sampleX.viaPositions.extend(self.viaLocs)
+
 
     def makeCell(self):
 
         #construct object
-        self.Cellr, self.yspan = md.nWiggle(self.coords, self.leng, self.xspan, 
+
+        self.Cellr, self.yspan, self.viaLocs = md.nWiggle(self.coords, self.leng, self.xspan, 
                 self.nWiggles, xOffset = self.xOffset, 
                 yOffset = self.yOffset, skew = self.skew, closeA = self.closeA,
-                closeB = self.closeB, rot=self.rot)
+                closeB = self.closeB, vias=self.vias, rot=self.rot)
    
 
     def addBridges(self, sampleX):
