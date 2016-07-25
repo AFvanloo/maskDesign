@@ -386,7 +386,7 @@ def simpleCrossNegative(size, thick, layer=0):
     points1 = [(-hsize,hthick),(-hthick, hthick),(-hthick,hsize),
             (hthick,hsize),(hthick,hthick),(hsize,hthick),
             (hsize,-hthick),(hthick,-hthick),(hthick,-hsize),
-            (-hthick,-hsize),(-hthick,-hthick),(-hsize,-hthick)][::-1]
+            (-hthick,-hsize),(-hthick,-hthick),(-hsize,-hthick),(-hsize, hthick)][::-1]
     totPoints = box + points1
     nCross = cad.core.Boundary(totPoints, layer=layer)
 
@@ -416,7 +416,7 @@ def transmonBox(coords,shape,rot=0):
 
     return transmonCellr
 
-def transmonBoxAlign(coords,shape, almarks = [2,2], rot=0):
+def transmonBoxAlign(coords,shape, almarks = [2,2], negativeMarks=False, rot=0):
     '''
     Empty box for the transmon, centered at coords
     For almarks, use [2,2] or [2,1] or [1,2]
@@ -432,8 +432,12 @@ def transmonBoxAlign(coords,shape, almarks = [2,2], rot=0):
     transmonCell.add(trbox)
 
     #Alignment marks
-    bCross = simpleCross(30*um,10*um)
-    sCross = simpleCross(12*um, 2*um)
+    if negativeMarks:
+        bCross = simpleCrossNegative(30*um,10*um)
+        sCross = simpleCrossNegative(12*um, 2*um)
+    else:
+        bCross = simpleCross(30*um,10*um)
+        sCross = simpleCross(12*um, 2*um)
     bigDis = defaults['TransBoxAlignDis1']
     smallDis = defaults['TransBoxAlignDis2']
 

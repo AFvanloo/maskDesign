@@ -141,8 +141,8 @@ class Sample:
 
         #Start Constructing the Sample
         print 'border type is ', border 
-        if (border < 1) or (border > 6):
-            raise Exception, 'Choose border between 1 and 4'
+        if (border < 1) or (border > 8):
+            raise Exception, 'Choose border between 1 and 8'
             #If using python 3, replace with following line
             #raise Exception('Choose border between 1 and 4')
         #Initialize actual Sample
@@ -363,7 +363,7 @@ class Sample:
                 GapCoupler(self,gapSize, placeInfo, extralen, flip, rot))
 
 
-    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2],
+    def addTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(300*um,0), almarks = [2,2], negativeMarks=False,
             flip=False, rot=0, name = None):
         '''
         Add a TransmonBox. 
@@ -380,7 +380,7 @@ class Sample:
 
         self.transmonBoxes += 1
         setattr(self,  name if name else 'transmonBox'+str(self.transmonBoxes),
-                TransmonBox(self, shape, placeInfo, offset, almarks, flip, rot))
+                TransmonBox(self, shape, placeInfo, offset, almarks, negativeMarks, flip, rot))
 
     def addCornerTransmonBox(self, placeInfo, shape=(300*um, 150*um), offset=(0*um,0),rot=0, name = None):
         '''
@@ -566,8 +566,8 @@ class Sample:
         self.launcherConfig  = str(self.launcherConfig)
 
         #Check for valid input
-        if self.launcherConfig not in ['A', 'B', 'C']:
-            raise Exception, 'Launcherconfig must be either A, B or C (case sensitive)'
+        if self.launcherConfig not in ['A', 'B', 'C', 'F']:
+            raise Exception, 'Launcherconfig must be either A, B, C or F (case sensitive)'
             #python 3 variant below
             #raise Exception('Launcherconfig must be either A, B or C (case sensitive)')
 
@@ -612,7 +612,23 @@ class Sample:
                 [-offX1, -borY, 90], [-offX2, -borY, 90]])
             positions.extend([[-borX, -offY2, 0],[-borX, -offY1, 0]])
 
+        if self.launcherConfig == 'F':
+            #14 launchers in total, 1 left/right, 5 top/bottom
+            #check right chipsize
+            startleft = -5*mm+650*um+275*um
+            startright = 5*mm-650*um-275*um
+            if self.borderTag != 8:
+                raise Exception, 'Configuration F only works with bordersize 8'
+                #Python 3 variant: raise Exception('Configuration F only works with bordersize 8')
+            positions.append([-borX,0,0])
+            positions.extend([[startleft,borY,-90],[startleft+offs,borY,-90],[startleft+2*offs,borY,-90],
+                [startleft+3*offs,borY,-90],[startleft+4*offs,borY,-90]])
+            positions.append([borX,0,180])
+            positions.extend([[startright,-borY,90],[startright-offs,-borY,90],[startright-2*offs,-borY,90],
+                [startright-3*offs,-borY,90],[startright-4*offs,-borY,90]])
+
         return positions    
+
     
     def addCrossArray(self, placeInfo):
         '''
@@ -658,7 +674,7 @@ class Sample:
 
 
     def addChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen=25*um,
-            extraline=0, chargeOffset=(0,0), endrot=0, startrot=0, name = None):
+            extraline=0, chargeOffset=(0,0), bridges=True, endrot=0, startrot=0, name = None):
         '''
         Add a chargeLine from the Launcher connector to a transmon box
 u
@@ -680,7 +696,7 @@ u
         self.chargeLines += 1
         setattr(self,  name if name else 'chargeLine'+str(self.chargeLines),
                 ChargeLine(self, placeInfoLaunch, placeInfoTransmon, gapLen,
-                    extraline, chargeOffset, endrot, startrot))
+                    extraline, chargeOffset, bridges, endrot, startrot))
 
 
 
@@ -1417,7 +1433,7 @@ class Wiggle:
 class ChargeLine:
 
     def __init__(self, sampleX, placeInfoLaunch, placeInfoTransmon, gapLen,
-            extraLen, chargeOffset, endrot, startrot, bridges=True):
+            extraLen, chargeOffset, bridges, endrot, startrot):
 
 
         self.gapLen = gapLen
@@ -1565,7 +1581,7 @@ class TransmonBox:
     Box for Transmon
     '''
 
-    def __init__(self, sampleX, shape, placeInfo, offset, almarks, flip, rot):
+    def __init__(self, sampleX, shape, placeInfo, offset, almarks, negativeMarks, flip, rot):
         '''
         Initialize Transmon Box properties
 
@@ -1582,6 +1598,7 @@ class TransmonBox:
         self.alMarks = almarks
         self.flip = flip
         self.rot = rot
+        self.negativeMarks = negativeMarks
 
         #Include the CPW dimensions for easier connecting
         xlen2 = self.offset[0] #+ self.shape[0]/2
@@ -1627,7 +1644,7 @@ class TransmonBox:
         Use the maskDesign module to generate the object
         '''
 
-        self.Cell = md.transmonBoxAlign(self.coords, self.shape, self.alMarks, self.rot)
+        self.Cell = md.transmonBoxAlign(self.coords, self.shape, self.alMarks, self.negativeMarks, self.rot)
 
 
 
