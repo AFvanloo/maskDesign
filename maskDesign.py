@@ -372,6 +372,31 @@ def simpleCross(size,thick,layer=0):
 
     return crossCell
 
+def simpleCrossNegative(size, thick, layer=0):
+    '''
+    used for transmonAlignment, draws a cross and returns it
+    '''
+    crossCell = cad.core.Cell('CROSS')
+    hsize, hthick = size/2., thick/2.
+
+    #draw the structure. points1 code copied from simpleCross
+    box = [(-size, hthick), (-size, size), (size, size), (size, -size),
+            (-size, -size), (-size, hthick)]
+    #cross: copied from simpleCross, inverted
+    points1 = [(-hsize,hthick),(-hthick, hthick),(-hthick,hsize),
+            (hthick,hsize),(hthick,hthick),(hsize,hthick),
+            (hsize,-hthick),(hthick,-hthick),(hthick,-hsize),
+            (-hthick,-hsize),(-hthick,-hthick),(-hsize,-hthick)][::-1]
+    totPoints = box + points1
+    nCross = cad.core.Boundary(totPoints, layer=layer)
+
+    crossCell.add(nCross)
+
+    return crossCell
+
+
+
+
 def transmonBox(coords,shape,rot=0):
     '''
     Empty box for the transmon, centered at coords
@@ -600,7 +625,7 @@ def fingerCoupler(coords, nfingers, fingerlen, fingerthick, gapheight, gapwidth,
     return couplerCellr
 
 
-def chargeLineEnd(coords,linelen,gaplen,center=a1,gap=b1.*um,rot=0):
+def chargeLineEnd(coords,linelen,gaplen,center=a1,gap=b1,rot=0):
     '''
     gateline end
 
@@ -1095,7 +1120,7 @@ def alignMarks(coords, rot=0):
     '''
     Build Alignment marks
     '''
-    #use the smallcross with CellArray
+    #use the simplecross with CellArray
     
     alCell = cad.core.Cell('ALIGN')
     al2Cell = cad.core.Cell('ALIGN')
