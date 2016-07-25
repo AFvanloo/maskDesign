@@ -733,7 +733,7 @@ u
 
 
 
-    def route(self, placeInfo1, placeInfo2, rot1=0, endrot=0):
+    def route(self, placeInfo1, placeInfo2, bridges=True, rot1=0, endrot=0):
         '''
         Draw a CPW from coords1 to coords2
 
@@ -799,7 +799,7 @@ u
             tdy -= self.rbend
 
         routeCell = md.CPWroute(self.startcoords, tdx, tdy, rot = rotBack,
-                endrot=endrot) 
+                bridges = bridges, endrot=endrot) 
         self.topCell.add(routeCell)
 
 
@@ -1417,7 +1417,7 @@ class Wiggle:
 class ChargeLine:
 
     def __init__(self, sampleX, placeInfoLaunch, placeInfoTransmon, gapLen,
-            extraLen, chargeOffset, endrot, startrot):
+            extraLen, chargeOffset, endrot, startrot, bridges=True):
 
 
         self.gapLen = gapLen
@@ -1439,7 +1439,7 @@ class ChargeLine:
         #First, Add a chargeLine End
         self.addChargeLineEnd(sampleX, placeInfoTransmon)
 
-        sampleX.route(placeInfoLaunch, self.gateEndConnect,
+        sampleX.route(placeInfoLaunch, self.gateEndConnect, bridges=bridges,
                 endrot=self.endrot, rot1 = self.Lrot)
 
 

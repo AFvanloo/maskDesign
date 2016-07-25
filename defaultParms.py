@@ -20,7 +20,8 @@ def dLists():
             (9.7*mm,4.7*mm), #4-5: Oxford Magnon design sizes: these are actually 5*10 and 5*5, but with an inside border
             (4.7*mm,4.7*mm),
             (4.5*mm, 2.8*mm),   #Edward Laird group sizes 
-            (10*mm, 10*mm)]
+            (10*mm, 10*mm),
+            (9.7*mm,3.033*mm)] #with bordergap=300um its a 10mm x 3.333 mm chip
     
     #Qudev / UQ parameters
     #offCenters = {'A' : 2470*um, 'B' : (2470*um, 1170*um, 2300*um), 
@@ -30,7 +31,8 @@ def dLists():
             'B' : (2470*um, 1170*um, 2300*um), 
             'C' : (925*um, 2775*um, 875*um, 2625*um), 
             'D' : (3990*um, 1330*um), 
-            'E' : 3990*um} 
+            'E' : 3990*um, 
+            'F' : 1740*um}  #CNTGatemonChip QEDox
 
     # entry 3 and 4: third number is distance form left center to left upper launcher
     #last entry, last 4 numbers: vertical distances, then horizontal distances
@@ -88,18 +90,20 @@ def dPars():
             'MMPXConnectLen'        : 1000*um,
             'MMPXOverlapWidth'      : .5*mm,     #half a mm overlap with PCB on each side
             'PCBcenter'             : .382*mm,  #This is 2a or W in the literature
-            'PCBgap'                : .58*mm,   #This is 2b or W+2S in the literature
+            'PCBgap'                : .5*mm,   #This is 2b or W+2S in the literature
             'PCBChipMargin'         : .5*mm,    #total maring: half of this is added to each side
             'PCBScrewHole'          : 2.7*mm,
             'PCBrbend'              : 1*mm,     #minimum bend radius
-            'viaDiameter'           : .004*mm,                 
-            'interviaDistance'      : .008*mm,
-            'viaHorizDistance'      : .0195*mm,
-            'randomViaDistance'     : .2*mm}     #distance between randomly placed vias
- #           'viaDiameter'           : .5*mm,                 
- #           'interviaDistance'      : 1*mm,
- #           'viaHorizDistance'      : .79*mm,
- #           'randomViaDistance'     : 2*mm}     #distance between randomly placed vias
+            #'viaDiameter'           : .004*mm,       #Matthias           
+            #'interviaDistance'      : .008*mm,       #Matthias
+            #'viaHorizDistance'      : .0195*mm,      #Matthias
+            #'randomViaDistance'     : .2*mm}     #Matthias  distance between randomly placed vias
+            'viaDiameter'           : .5*mm,                 
+            'interviaDistance'      : 1*mm,
+            'viaHorizDistance'      : .5*mm,
+            'randomViaDistance'     : 2*mm,    #distance between randomly placed vias
+            'TransBoxAlignDis1'     : 520*um,  #One of the characterisitc distances used in placing alignment marks
+            'TransBoxAlignDis2'     : 420*um}  #One of the characterisitc distances used in placing alignment marks
 
     return defDict
 

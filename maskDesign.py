@@ -23,6 +23,7 @@ um = 1e3
 mm = 1e6
 inch = 25.4*mm
 a1, b1 = defaults['centerConductor'], defaults['CPWGap'] 
+rbend = defaults['minimumRadius']
 
 cad.core.default_layer = 0
 
@@ -111,7 +112,7 @@ def cornerL(coords, leng=500*um, thick=100*um, rot=0):
     return LCellr
 
 
-def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
+def CPW(coords,leng, center=a1,gap=b1, closeA=False, closeB=False,
         bridges=False, bridgeDistance= defaults['ABdistance'], 
         bridgeStart=defaults[ 'ABstart'], bridgeEnd=defaults[ 'ABend'], vias=False, viaDiam = None,
         interviaDistance=None, viaHorizDistance=None, rot=0):
@@ -196,7 +197,7 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
         #pb1 = defaults['PCBgap']
         viaCell = cad.core.Cell('VIA')
         xloc = interviaDistance/2.
-        y = viaHorizDistance
+        y = viaHorizDistance + gap/2
         viaLocs = []
 
         #generate locations:
@@ -222,7 +223,7 @@ def CPW(coords,leng, center=10*um,gap=19*um, closeA=False, closeB=False,
 
 
 def CPWArc(coords,initangle=270,degrees=90,
-        radius=100.*um,center=10.*um,gap=19.*um, vias=False, rot=0.):
+        radius=rbend,center=a1,gap=b1, vias=False, rot=0.):
     '''
     draw a CPW arc of pirad * pi radians.
     Radius, centerconductor widht and gap width are input arguments
@@ -408,8 +409,8 @@ def transmonBoxAlign(coords,shape, almarks = [2,2], rot=0):
     #Alignment marks
     bCross = simpleCross(30*um,10*um)
     sCross = simpleCross(12*um, 2*um)
-    bigDis = 300*um
-    smallDis = 250*um
+    bigDis = defaults['TransBoxAlignDis1']
+    smallDis = defaults['TransBoxAlignDis2']
 
     for i in range(len(almarks)):
         ym = (-1)**i
@@ -487,7 +488,7 @@ def cornerTransmonBox(coords, shape=(300*um, 200*um), rot=0):
     return transmonCellr
 
 
-def gapCoupler(coords,gapSize,center=10.*um,gap=19.*um,leng=100*um,rot=0):
+def gapCoupler(coords,gapSize,center=a1,gap=b1,leng=100*um,rot=0):
     '''
     Build a gap capacitor, with a gap which is gapsize wide
     '''
@@ -599,7 +600,7 @@ def fingerCoupler(coords, nfingers, fingerlen, fingerthick, gapheight, gapwidth,
     return couplerCellr
 
 
-def chargeLineEnd(coords,linelen,gaplen,center=10*um,gap=19.*um,rot=0):
+def chargeLineEnd(coords,linelen,gaplen,center=a1,gap=b1.*um,rot=0):
     '''
     gateline end
 
@@ -763,6 +764,7 @@ def chipText(coords, text, fontsize=100*um, font='romand', layer=0,rot=0):
     else:
         texts = cad.shapes.LineLabel('',fontsize,layer=layer)
         texts.add_text(text, font)
+    textCell.add(texts)
 
     #rotate and translate
     textCellr = cad.core.CellReference(textCell, rotation=rot)
@@ -908,10 +910,10 @@ def jLine(coords, totlen, xspan, yspan, nWiggles, rbend=100*um, bridges= True, r
         wigLen = totlen - xspan + (np.pi/2 - 1)*rbend
         wigOffset = yspan/2 - (2*nWiggles-2)*rbend
         #Build a wiggle to get the yspan
-        wiggle, wigyspan1 = nWiggle((xspan/2, -yspan/2-rbend/2), wigLen, yspan-rbend, nWiggles,
+        wiggle, wigyspan1, viaLocs = nWiggle((xspan/2, -yspan/2-rbend/2), wigLen, yspan-rbend, nWiggles,
                 rbend=rbend, xOffset = -wigOffset, rot=-90)
         #build the wiggle to be used
-        wiggle2, wigyspan = nWiggle((xspan/2, -yspan/2 - rbend/2), wigLen, yspan-rbend, nWiggles,
+        wiggle2, wigyspan, viaLocs = nWiggle((xspan/2, -yspan/2 - rbend/2), wigLen, yspan-rbend, nWiggles,
                 rbend=rbend, xOffset = -wigOffset, yOffset = -wigyspan1 +
                 2*rbend, rot=-90)
         jCell.add(wiggle2)
@@ -2235,8 +2237,8 @@ def arcVias(initAngle, degrees, radius, center, gap):
     '''
 
     VA = cad.core.Cell('ARCVIA')
-    vhD = defaults['viaHorizDistance']
-    ivD = defaults['interviaDistance']
+    vhD = defaults['viaHorizDistance'] + gap/2.
+    ivD = defaults['interviaDistance'] 
     posList = []
 
     for i in range(1,3):
