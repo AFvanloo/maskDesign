@@ -56,7 +56,9 @@ class Sample:
 
         if borderGap == None:
             self.borderGap = defaults['borderGap']
-        self.borderGap = borderGap
+            print 'defined bordergap'
+        else:
+            self.borderGap = borderGap
 
         #launcher options
         self.launcherPositions = launcherPositions
